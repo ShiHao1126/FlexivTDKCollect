@@ -9,7 +9,8 @@ from typing import Any
 
 import numpy as np
 
-from .config import CollectConfig
+from .config import ROBOT_FIELDS, CollectConfig
+from .robot import FlexivStateSource
 from .storage import save_arrays, save_image
 
 
@@ -81,26 +82,24 @@ class ImageWriter(threading.Thread):
 
 
 class RobotWorker(Worker):
-    def __init__(self, teleop: Any, config: CollectConfig, *args: Any):
+    def __init__(self, state_source: FlexivStateSource, config: CollectConfig, *args: Any):
         super().__init__("robot", *args)
-        self.teleop = teleop
+        self.state_source = state_source
         self.config = config
 
     def collect(self) -> None:
-        fields = self.config.robot_fields
-        values = {name: [] for name in ("timestamp_s", "timestamp_sdk_s", *fields)}
+        values = {
+            name: [] for name in ("timestamp_s", "timestamp_sdk_s", *ROBOT_FIELDS)
+        }
         period = 1.0 / self.config.robot_rate_hz
         deadline = time.monotonic()
         try:
             while not self.stop_event.is_set():
-                pair = self.teleop.robot_states(0)
-                if not isinstance(pair, tuple) or len(pair) != 2:
-                    raise RuntimeError("TDK robot_states(0) must return (leader, follower)")
-                state = pair[1]
+                state = self.state_source.read_state()
                 values["timestamp_s"].append(self.timestamp_s())
-                values["timestamp_sdk_s"].append(_sdk_timestamp_s(state.timestamp))
-                for name in fields:
-                    values[name].append(np.asarray(getattr(state, name)).copy())
+                values["timestamp_sdk_s"].append(state.timestamp_sdk_s)
+                for name in ROBOT_FIELDS:
+                    values[name].append(getattr(state, name))
                 deadline += period
                 self.stop_event.wait(max(0.0, deadline - time.monotonic()))
         finally:
@@ -120,7 +119,6 @@ class CameraWorker(Worker):
         label = camera_serial or f"auto_{camera_index}"
         super().__init__(f"camera:{label}", *args)
         self.config = config
-        self.camera_index = camera_index
         self.camera_serial = camera_serial
         self.camera_dir = self.record_dir / "camera" / label
         self._rs = rs_module
@@ -135,57 +133,64 @@ class CameraWorker(Worker):
         cfg = rs.config()
         if self.camera_serial:
             cfg.enable_device(self.camera_serial)
-        if self.config.enable_camera_color:
-            cfg.enable_stream(
-                rs.stream.color,
-                self.config.camera_color_width,
-                self.config.camera_color_height,
-                rs.format.bgr8,
-                self.config.camera_color_fps,
-            )
-        if self.config.enable_camera_depth:
+        cfg.enable_stream(
+            rs.stream.color,
+            self.config.camera_width,
+            self.config.camera_height,
+            rs.format.bgr8,
+            self.config.camera_fps,
+        )
+        if self.config.collect_depth:
             cfg.enable_stream(
                 rs.stream.depth,
-                self.config.camera_depth_width,
-                self.config.camera_depth_height,
+                self.config.camera_width,
+                self.config.camera_height,
                 rs.format.z16,
-                self.config.camera_depth_fps,
+                self.config.camera_fps,
             )
+
         timestamps, device_timestamps, frame_indices = [], [], []
         pipeline_started = False
         writer = None
         index = 0
         try:
-            profile = pipeline.start(cfg)
+            try:
+                profile = pipeline.start(cfg)
+            except RuntimeError as exc:
+                serial = self.camera_serial or "auto-selected device"
+                streams = "color and depth" if self.config.collect_depth else "color"
+                raise RuntimeError(
+                    f"RealSense {serial} does not support the requested {streams} "
+                    f"profile: {self.config.camera_width}x{self.config.camera_height} "
+                    f"at {self.config.camera_fps} FPS ({exc})"
+                ) from exc
             pipeline_started = True
             if profile is not None and hasattr(profile, "get_device"):
                 device = profile.get_device()
                 self.stats["device_name"] = device.get_info(rs.camera_info.name)
                 self.stats["device_serial"] = device.get_info(rs.camera_info.serial_number)
-            align = None
-            if (self.config.enable_camera_color and self.config.enable_camera_depth
-                    and self.config.align_depth_to_color):
-                align = rs.align(rs.stream.color)
             writer = ImageWriter(self.config.image_queue_size, self.stats)
             writer.start()
             while not self.stop_event.is_set():
                 frames = pipeline.wait_for_frames(timeout_ms=1000)
-                if align is not None:
-                    frames = align.process(frames)
-                color = frames.get_color_frame() if self.config.enable_camera_color else None
-                depth = frames.get_depth_frame() if self.config.enable_camera_depth else None
-                if (self.config.enable_camera_color and not color) or (self.config.enable_camera_depth and not depth):
+                color = frames.get_color_frame()
+                depth = frames.get_depth_frame() if self.config.collect_depth else None
+                if not color or (self.config.collect_depth and not depth):
                     continue
-                images = []
-                if color:
-                    images.append((self.camera_dir / "color", index, np.asanyarray(color.get_data()).copy()))
+                images = [(
+                    self.camera_dir / "color",
+                    index,
+                    np.asanyarray(color.get_data()).copy(),
+                )]
                 if depth:
-                    images.append((self.camera_dir / "depth", index, np.asanyarray(depth.get_data()).copy()))
-                accepted = writer.submit(images)
-                if accepted:
+                    images.append((
+                        self.camera_dir / "depth",
+                        index,
+                        np.asanyarray(depth.get_data()).copy(),
+                    ))
+                if writer.submit(images):
                     timestamps.append(self.timestamp_s())
-                    timestamp_frame = color if color else depth
-                    device_timestamps.append(float(timestamp_frame.get_timestamp()))
+                    device_timestamps.append(float(color.get_timestamp()))
                     frame_indices.append(index)
                 index += 1
         finally:
@@ -220,74 +225,79 @@ class XenseWorker(Worker):
         gripper_factory = self._gripper_factory
         sensor_factory = self._sensor_factory
         output_types = self._output_types
-        if self.config.enable_gripper_width and gripper_factory is None:
+        if self.config.enable_gripper and gripper_factory is None:
             from xensegripper import XenseGripper
             gripper_factory = XenseGripper.create
         if self.config.enable_tactile and (sensor_factory is None or output_types is None):
             from xensesdk import Sensor
             sensor_factory = Sensor.create
             output_types = Sensor.OutputType
-        if self.config.enable_tactile and output_types is None:
-            raise RuntimeError("Xense output types are required")
 
-        output_specs = []
-        if self.config.enable_tactile_marker:
-            output_specs.append(("marker2d", output_types.Marker2D, False))
-        if self.config.enable_tactile_force:
-            output_specs.append(("force_torque", output_types.ForceResultant, False))
-        if self.config.enable_tactile_rectify:
-            output_specs.append(("rectify", output_types.Rectify, True))
-        if self.config.enable_tactile_difference:
-            output_specs.append(("difference", output_types.Difference, True))
-        if self.config.enable_tactile_depth:
-            output_specs.append(("depth", output_types.Depth, True))
-
-        gripper = None
-        left = None
-        right = None
-        gripper_values = {name: [] for name in ("timestamp_s", "width_m")}
-        array_names = [name for name, _, is_image in output_specs if not is_image]
-        tactile = {
-            side: {name: [] for name in ("timestamp_s", "timestamp_sdk_s", *array_names)}
-            for side in ("left", "right")
+        output_specs = (
+            ("marker2d", output_types.Marker2D, False),
+            ("force_torque", output_types.ForceResultant, False),
+            ("rectify", output_types.Rectify, True),
+            ("difference", output_types.Difference, True),
+            ("depth", output_types.Depth, True),
+        ) if self.config.enable_tactile else ()
+        grippers: dict[str, Any] = {}
+        sensors: dict[str, Any] = {}
+        gripper_values = {
+            mac: {"timestamp_s": [], "width_m": []}
+            for mac in self.config.gripper_macs
         }
-        period, deadline, index = 1.0 / self.config.xense_rate_hz, time.monotonic(), 0
+        tactile_values = {
+            serial: {
+                "timestamp_s": [],
+                "timestamp_sdk_s": [],
+                "marker2d": [],
+                "force_torque": [],
+            }
+            for serial in self.config.tactile_sns
+        }
+        period = 1.0 / self.config.xense_rate_hz
+        deadline = time.monotonic()
+        index = 0
         writer = None
         try:
-            if self.config.enable_gripper_width:
-                gripper = gripper_factory(mac_addr=self.config.gripper_mac)
+            if self.config.enable_gripper:
+                for mac in self.config.gripper_macs:
+                    grippers[mac] = gripper_factory(mac_addr=mac)
             if self.config.enable_tactile:
-                left = sensor_factory(self.config.left_tactile_sn, mac_addr=self.config.gripper_mac)
-                right = sensor_factory(self.config.right_tactile_sn, mac_addr=self.config.gripper_mac)
-            if any(is_image for _, _, is_image in output_specs):
+                mac = self.config.gripper_macs[0]
+                for serial in self.config.tactile_sns:
+                    sensors[serial] = sensor_factory(serial, mac_addr=mac)
                 writer = ImageWriter(self.config.image_queue_size, self.stats)
                 writer.start()
+
+            outputs = [output for _, output, _ in output_specs]
             while not self.stop_event.is_set():
-                if gripper is not None:
+                for mac, gripper in grippers.items():
                     status = gripper.get_gripper_status()
-                    gripper_values["timestamp_s"].append(self.timestamp_s())
-                    gripper_values["width_m"].append(float(status["position"]) / 1000.0)
+                    gripper_values[mac]["timestamp_s"].append(self.timestamp_s())
+                    gripper_values[mac]["width_m"].append(
+                        float(status["position"]) / 1000.0
+                    )
                 image_batch = []
-                for side, sensor in (("left", left), ("right", right)):
-                    if sensor is None:
-                        continue
-                    outputs = [output for _, output, _ in output_specs]
+                for serial, sensor in sensors.items():
                     values = sensor.selectSensorInfo(*outputs, output_types.TimeStamp)
                     if not isinstance(values, (tuple, list)) or len(values) != len(output_specs) + 1:
-                        raise RuntimeError(f"{side} Xense tactile output count mismatch")
-                    tactile[side]["timestamp_s"].append(self.timestamp_s())
-                    tactile[side]["timestamp_sdk_s"].append(float(values[-1]))
+                        raise RuntimeError(f"Xense tactile {serial} output count mismatch")
+                    tactile_values[serial]["timestamp_s"].append(self.timestamp_s())
+                    tactile_values[serial]["timestamp_sdk_s"].append(float(values[-1]))
                     for (name, _, is_image), value in zip(output_specs, values[:-1]):
                         if is_image:
                             image_batch.append((
-                                self.record_dir / f"gripper/tactile/{side}/{name}",
+                                self.record_dir / "tactile" / serial / name,
                                 index,
                                 np.asarray(value).copy(),
                             ))
                         else:
                             dtype = np.float32 if name == "marker2d" else np.float64
                             array = np.asarray(value, dtype=dtype)
-                            tactile[side][name].append(array.reshape(6) if name == "force_torque" else array)
+                            tactile_values[serial][name].append(
+                                array.reshape(6) if name == "force_torque" else array
+                            )
                 if writer is not None:
                     writer.submit(image_batch)
                 index += 1
@@ -296,28 +306,22 @@ class XenseWorker(Worker):
         finally:
             if writer is not None:
                 writer.close()
-            for sensor in (right, left):
-                if sensor is None:
-                    continue
+            for sensor in reversed(tuple(sensors.values())):
                 try:
                     sensor.release()
                 except Exception as exc:
                     self.stats["cleanup_errors"].append(str(exc))
-            release = getattr(gripper, "release", None) if gripper is not None else None
-            if callable(release):
-                try:
-                    release()
-                except Exception as exc:
-                    self.stats["cleanup_errors"].append(str(exc))
+            for gripper in reversed(tuple(grippers.values())):
+                release = getattr(gripper, "release", None)
+                if callable(release):
+                    try:
+                        release()
+                    except Exception as exc:
+                        self.stats["cleanup_errors"].append(str(exc))
             self.stats["samples"] = index
-            if self.config.enable_gripper_width:
-                save_arrays(self.record_dir / "gripper", gripper_values)
-            if self.config.enable_tactile:
-                for side in ("left", "right"):
-                    save_arrays(self.record_dir / f"gripper/tactile/{side}", tactile[side])
-
-
-def _sdk_timestamp_s(value: Any) -> float:
-    if isinstance(value, (tuple, list)) and len(value) == 2:
-        return float(value[0]) + float(value[1]) * 1e-9
-    return float(value)
+            for mac, values in gripper_values.items():
+                if self.config.enable_gripper:
+                    save_arrays(self.record_dir / "gripper" / mac, values)
+            for serial, values in tactile_values.items():
+                if self.config.enable_tactile:
+                    save_arrays(self.record_dir / "tactile" / serial, values)

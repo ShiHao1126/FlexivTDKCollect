@@ -7,14 +7,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .config import CollectConfig
+from .config import ROBOT_FIELDS, CollectConfig
+from .robot import FlexivStateSource
 from .storage import write_json
 from .workers import CameraWorker, RobotWorker, Worker, XenseWorker
 
 
 class CollectionSession:
-    def __init__(self, teleop: Any, config: CollectConfig):
-        self.teleop = teleop
+    def __init__(self, robot_state_source: FlexivStateSource | None, config: CollectConfig):
+        self.robot_state_source = robot_state_source
         self.config = config
         self.record_dir: Path | None = None
         self.workers: list[Worker] = []
@@ -30,8 +31,8 @@ class CollectionSession:
             raise RuntimeError("a record is already active")
         if not any((self.config.enable_robot, self.config.enable_camera, self.config.enable_xense)):
             raise RuntimeError("at least one data source must be enabled")
-        if self.config.enable_robot and not self.config.robot_fields:
-            raise RuntimeError("enable_robot requires at least one robot field group")
+        if self.config.enable_robot and self.robot_state_source is None:
+            raise RuntimeError("enable_robot requires a robot state source")
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         self.record_dir = self.config.output_dir / ".inprogress" / f"record_{stamp}"
         self.record_dir.mkdir(parents=True)
@@ -40,11 +41,18 @@ class CollectionSession:
         args = (self.record_dir, start_ns, self.errors)
         self.workers = []
         if self.config.enable_robot:
-            self.workers.append(RobotWorker(self.teleop, self.config, *args))
+            self.workers.append(RobotWorker(self.robot_state_source, self.config, *args))
         if self.config.enable_camera:
             serials = self.config.camera_serials or (None,)
             for index, serial in enumerate(serials):
-                self.workers.append(CameraWorker(self.config, *args, camera_index=index, camera_serial=serial))
+                self.workers.append(
+                    CameraWorker(
+                        self.config,
+                        *args,
+                        camera_index=index,
+                        camera_serial=serial,
+                    )
+                )
         if self.config.enable_xense:
             self.workers.append(XenseWorker(self.config, *args))
         started_workers = []
@@ -58,10 +66,13 @@ class CollectionSession:
             for worker in reversed(started_workers):
                 worker.join(timeout=60.0)
             self.workers = started_workers
-            target = self._finalize("startup_error", [
-                ("session", str(exc), traceback.format_exc()),
-            ])
-            raise RuntimeError(f"collection startup failed; invalid record saved to {target}") from exc
+            target = self._finalize(
+                "startup_error",
+                [("session", str(exc), traceback.format_exc())],
+            )
+            raise RuntimeError(
+                f"collection startup failed; invalid record saved to {target}"
+            ) from exc
         return self.record_dir
 
     def finish(self, reason: str = "completed") -> Path:
@@ -73,7 +84,11 @@ class CollectionSession:
             worker.join(timeout=60.0)
         return self._finalize(reason)
 
-    def _finalize(self, reason: str, failures: list[tuple[str, str, str]] | None = None) -> Path:
+    def _finalize(
+        self,
+        reason: str,
+        failures: list[tuple[str, str, str]] | None = None,
+    ) -> Path:
         if self.record_dir is None:
             raise RuntimeError("no active record")
         failures = list(failures or [])
@@ -89,12 +104,24 @@ class CollectionSession:
             for worker in self.workers
         )
         valid = reason == "completed" and not failures and healthy
-        metadata = {"started_at": self.started_at, "finished_at": datetime.now().astimezone().isoformat(),
-                    "termination_reason": reason, "valid": valid, "leader_sn": self.config.leader_sn,
-                    "follower_sn": self.config.follower_sn, "sources": {w.name: w.stats for w in self.workers},
-                    "acquisition": self._acquisition_metadata(),
-                    "user_metadata": self.config.metadata}
-        validation = {"valid": valid, "errors": [{"source": n, "message": m, "traceback": t} for n, m, t in failures]}
+        metadata = {
+            "started_at": self.started_at,
+            "finished_at": datetime.now().astimezone().isoformat(),
+            "termination_reason": reason,
+            "valid": valid,
+            "leader_sn": self.config.leader_sn,
+            "follower_sn": self.config.follower_sn,
+            "sources": {worker.name: worker.stats for worker in self.workers},
+            "acquisition": self._acquisition_metadata(),
+            "user_metadata": self.config.metadata,
+        }
+        validation = {
+            "valid": valid,
+            "errors": [
+                {"source": name, "message": message, "traceback": trace}
+                for name, message, trace in failures
+            ],
+        }
         write_json(self.record_dir / "metadata.json", metadata)
         write_json(self.record_dir / "validation.json", validation)
         target_name = self.record_dir.name if valid else f"invalid_{self.record_dir.name}"
@@ -109,35 +136,37 @@ class CollectionSession:
         return {
             "robot": {
                 "enabled": self.config.enable_robot,
+                "leader_tool": self.config.leader_tool,
+                "follower_tool": self.config.follower_tool,
                 "rate_hz": self.config.robot_rate_hz,
-                "fields": list(self.config.robot_fields) if self.config.enable_robot else [],
+                "fields": list(ROBOT_FIELDS) if self.config.enable_robot else [],
             },
             "camera": {
+                "enabled": self.config.enable_camera,
                 "requested_serials": list(self.config.camera_serials),
                 "count": self.config.camera_count if self.config.enable_camera else 0,
-                "color": {
-                    "enabled": self.config.enable_camera_color,
-                    "width": self.config.camera_color_width,
-                    "height": self.config.camera_color_height,
-                    "fps": self.config.camera_color_fps,
-                },
-                "depth": {
-                    "enabled": self.config.enable_camera_depth,
-                    "width": self.config.camera_depth_width,
-                    "height": self.config.camera_depth_height,
-                    "fps": self.config.camera_depth_fps,
-                },
-                "align_depth_to_color": self.config.align_depth_to_color,
+                "width": self.config.camera_width,
+                "height": self.config.camera_height,
+                "fps": self.config.camera_fps,
+                "collect_depth": self.config.collect_depth,
             },
             "xense": {
                 "rate_hz": self.config.xense_rate_hz,
-                "gripper_width": self.config.enable_gripper_width,
+                "gripper": {
+                    "enabled": self.config.enable_gripper,
+                    "macs": list(self.config.gripper_macs),
+                    "fields": ["width_m"] if self.config.enable_gripper else [],
+                },
                 "tactile": {
-                    "marker": self.config.enable_tactile_marker,
-                    "force": self.config.enable_tactile_force,
-                    "rectify": self.config.enable_tactile_rectify,
-                    "difference": self.config.enable_tactile_difference,
-                    "depth": self.config.enable_tactile_depth,
+                    "enabled": self.config.enable_tactile,
+                    "serials": list(self.config.tactile_sns),
+                    "fields": [
+                        "marker2d",
+                        "force_torque",
+                        "rectify",
+                        "difference",
+                        "depth",
+                    ] if self.config.enable_tactile else [],
                 },
             },
         }
