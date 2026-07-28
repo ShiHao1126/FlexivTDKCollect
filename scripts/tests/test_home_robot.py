@@ -16,12 +16,14 @@ SPEC.loader.exec_module(home_robot)
 def make_args(**overrides):
     values = {
         "robot_sn": "Rizon4s-123456",
+        "tool_name": "test_tool",
         "target_q": [0.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         "joint_max_velocity": 5.0,
         "joint_max_acceleration": 4.0,
         "joint_tolerance": 0.5,
         "operational_timeout": 1.0,
         "motion_timeout": 2.0,
+        "zero_force_timeout": 1.0,
         "poll_interval": 0.01,
         "clear_fault": False,
         "yes": True,
@@ -50,7 +52,8 @@ class FakeRobot:
 class HomeRobotTest(unittest.TestCase):
     def test_defaults_are_ready_for_direct_run(self):
         args = home_robot.HomeArgs().parse_args([])
-        self.assertEqual(args.robot_sn, "Rizon4s-063586")
+        self.assertEqual(args.robot_sn, "Rizon4s-063652")
+        self.assertEqual(args.tool_name, "tool1")
         self.assertEqual(args.target_q, [0, -40, 0, 90, 0, 40, 45])
         self.assertEqual(args.joint_max_velocity, 5.0)
         self.assertEqual(args.joint_max_acceleration, 5.0)
@@ -74,6 +77,8 @@ class HomeRobotTest(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(serials, ["Rizon4s-123456"])
         self.assertEqual(robot.calls[0][0], "prepare")
+        self.assertEqual(robot.calls[0][1]["tool_name"], "test_tool")
+        self.assertEqual(robot.calls[0][1]["zero_force_timeout_s"], 1.0)
         move = robot.calls[1]
         np.testing.assert_allclose(move[1], np.deg2rad(make_args().target_q))
         self.assertAlmostEqual(move[2]["max_velocity_rad_s"], math.radians(5.0))

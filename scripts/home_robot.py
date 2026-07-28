@@ -15,8 +15,10 @@ from flexiv_tdk_collect import RdkFlexivRobot
 
 
 class HomeArgs(Tap):
-    # robot_sn: str = "Rizon4s-063652"   # Leader
-    robot_sn: str = "Rizon4s-063586"   # Follower
+    robot_sn: str = "Rizon4s-063652"   # Leader
+    tool_name: str = "tool1"
+    # robot_sn: str = "Rizon4s-063586"   # Follower
+    # tool_name: str = "hapticexoteleop"
 
     target_q: list[float] = [0, -40, 0, 90, 0, 40, 45]
     joint_max_velocity: float = 5.0
@@ -24,6 +26,7 @@ class HomeArgs(Tap):
     joint_tolerance: float = 0.5
     operational_timeout: float = 30.0
     motion_timeout: float = 120.0
+    zero_force_timeout: float = 30.0
     poll_interval: float = 0.1
     clear_fault: bool = True
     yes: bool = True
@@ -31,6 +34,7 @@ class HomeArgs(Tap):
     def configure(self) -> None:
         self.description = "Move one Flexiv robot to a configured joint posture"
         self.add_argument("--robot-sn", dest="robot_sn", default=self.robot_sn)
+        self.add_argument("--tool-name", dest="tool_name", default=self.tool_name)
         self.add_argument(
             "--target-q", dest="target_q", type=float, nargs=7, default=self.target_q,
             metavar=("Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7"),
@@ -43,6 +47,11 @@ class HomeArgs(Tap):
         self.add_argument(
             "--motion-timeout", dest="motion_timeout", type=float,
             default=self.motion_timeout, help="seconds to wait for joint motion",
+        )
+        self.add_argument(
+            "--zero-force-timeout", dest="zero_force_timeout", type=float,
+            default=self.zero_force_timeout,
+            help="seconds to wait for force/torque sensor zeroing",
         )
         self.add_argument(
             "--poll-interval", dest="poll_interval", type=float,
@@ -73,7 +82,8 @@ def validate_args(args: HomeArgs) -> tuple[float, ...]:
         raise ValueError("--target-q requires exactly 7 finite joint angles")
     for name in (
         "joint_max_velocity", "joint_max_acceleration", "joint_tolerance",
-        "operational_timeout", "motion_timeout", "poll_interval",
+        "operational_timeout", "motion_timeout", "zero_force_timeout",
+        "poll_interval",
     ):
         value = getattr(args, name)
         if not math.isfinite(value) or value <= 0:
@@ -98,11 +108,13 @@ def run_homing(
 
     robot = robot_factory(args.robot_sn)
     try:
-        print("Enabling robot...")
+        print("Preparing robot and zeroing force/torque sensors...")
         robot.prepare(
             clear_fault=args.clear_fault,
+            tool_name=args.tool_name,
             operational_timeout_s=args.operational_timeout,
             poll_interval_s=args.poll_interval,
+            zero_force_timeout_s=args.zero_force_timeout,
         )
         robot.move_joints(
             np.deg2rad(target_q),

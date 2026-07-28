@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 import unittest
+import weakref
 
 import numpy as np
 
@@ -69,6 +70,12 @@ class FakeRdkRobot:
     def SwitchMode(self, mode):
         self.calls.append(("SwitchMode", mode))
 
+    def ExecutePrimitive(self, name, params):
+        self.calls.append(("ExecutePrimitive", name, params))
+
+    def primitive_states(self):
+        return {"terminated": True}
+
     def SendJointPosition(self, target, velocity, max_velocity, max_acceleration):
         self.calls.append((
             "SendJointPosition", target, velocity, max_velocity, max_acceleration,
@@ -91,7 +98,11 @@ class FakeTool:
 
 def make_robot(fake, **kwargs):
     rdk = SimpleNamespace(
-        Mode=SimpleNamespace(NRT_JOINT_IMPEDANCE="joint", IDLE="idle"),
+        Mode=SimpleNamespace(
+            NRT_JOINT_IMPEDANCE="joint",
+            NRT_PRIMITIVE_EXECUTION="primitive",
+            IDLE="idle",
+        ),
         Tool=FakeTool,
     )
     return RdkFlexivRobot(
@@ -140,6 +151,27 @@ class RdkFlexivRobotTests(unittest.TestCase):
         robot = make_robot(fake)
         robot.prepare(clear_fault=True, operational_timeout_s=1.0, poll_interval_s=0.1)
         self.assertEqual(fake.calls[:2], ["ClearFault", "Enable"])
+
+    def test_prepare_switches_tool_before_force_torque_zeroing(self):
+        fake = FakeRdkRobot()
+        robot = make_robot(fake)
+        robot.prepare(
+            clear_fault=True,
+            tool_name="xense",
+            operational_timeout_s=1.0,
+            poll_interval_s=0.1,
+        )
+        self.assertEqual(
+            fake.calls,
+            [
+                "Enable",
+                ("SwitchMode", "idle"),
+                ("Tool.Switch", "xense"),
+                ("SwitchMode", "primitive"),
+                ("ExecutePrimitive", "ZeroFTSensor", {}),
+                ("SwitchMode", "idle"),
+            ],
+        )
 
     def test_move_joints_uses_joint_velocity_and_acceleration_limits(self):
         target = np.full(7, 0.5)
@@ -197,6 +229,18 @@ class RdkFlexivRobotTests(unittest.TestCase):
         robot.close()
         robot.close()
         self.assertEqual(fake.calls, ["Stop"])
+
+    def test_close_releases_backing_rdk_connection(self):
+        fake = FakeRdkRobot()
+        calls = fake.calls
+        backing_robot = weakref.ref(fake)
+        robot = make_robot(fake)
+        del fake
+
+        robot.close()
+
+        self.assertEqual(calls, ["Stop"])
+        self.assertIsNone(backing_robot())
 
 
 if __name__ == "__main__":

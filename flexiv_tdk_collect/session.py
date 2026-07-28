@@ -56,7 +56,11 @@ class CollectionSession:
         if self.config.enable_xense:
             self.workers.append(XenseWorker(self.config, *args))
         started_workers = []
+        prepared_workers = []
         try:
+            for worker in self.workers:
+                worker.prepare()
+                prepared_workers.append(worker)
             for worker in self.workers:
                 worker.start()
                 started_workers.append(worker)
@@ -65,6 +69,9 @@ class CollectionSession:
                 worker.stop()
             for worker in reversed(started_workers):
                 worker.join(timeout=60.0)
+            for worker in reversed(prepared_workers):
+                if not worker.is_alive():
+                    worker.close()
             self.workers = started_workers
             target = self._finalize(
                 "startup_error",
@@ -82,6 +89,9 @@ class CollectionSession:
             worker.stop()
         for worker in reversed(self.workers):
             worker.join(timeout=60.0)
+        for worker in reversed(self.workers):
+            if not worker.is_alive():
+                worker.close()
         return self._finalize(reason)
 
     def _finalize(

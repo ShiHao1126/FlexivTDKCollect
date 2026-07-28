@@ -1,4 +1,5 @@
 import queue
+import threading
 import tempfile
 import time
 import unittest
@@ -266,10 +267,12 @@ class WorkerTests(unittest.TestCase):
                 sensor_factory=sensor_factory,
                 output_types=OUTPUTS,
             )
+            worker.prepare()
             worker.start()
             time.sleep(0.03)
             worker.stop()
             worker.join(2.0)
+            worker.close()
             self.assertEqual([gripper.mac for gripper in grippers], ["route_mac"])
             self.assertEqual([sensor.serial for sensor in sensors], ["sensor_a", "sensor_b"])
             self.assertTrue(all(gripper.released for gripper in grippers))
@@ -315,15 +318,55 @@ class WorkerTests(unittest.TestCase):
                 gripper_factory=gripper_factory,
                 sensor_factory=lambda *_args, **_kwargs: self.fail("no tactile sensor"),
             )
+            worker.prepare()
             worker.start()
             time.sleep(0.02)
             worker.stop()
             worker.join(2.0)
+            worker.close()
             self.assertEqual([gripper.mac for gripper in grippers], ["mac_a", "mac_b"])
             self.assertTrue(all(gripper.released for gripper in grippers))
             self.assertTrue((Path(tmp) / "gripper/mac_a/width_m.npy").is_file())
             self.assertTrue((Path(tmp) / "gripper/mac_b/width_m.npy").is_file())
             self.assertFalse((Path(tmp) / "tactile").exists())
+
+    def test_xense_devices_are_prepared_on_calling_thread(self):
+        factory_threads = []
+        caller_thread = threading.get_ident()
+
+        def gripper_factory(*, mac_addr):
+            factory_threads.append(threading.get_ident())
+            return FakeGripper(mac_addr)
+
+        def sensor_factory(serial, *, mac_addr):
+            factory_threads.append(threading.get_ident())
+            return FakeSensor(serial)
+
+        config = CollectConfig(
+            Path("unused"),
+            enable_robot=False,
+            enable_camera=False,
+            gripper_macs=("route_mac",),
+            tactile_sns=("sensor_a",),
+        )
+        with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
+            worker = XenseWorker(
+                config,
+                Path(tmp),
+                time.monotonic_ns(),
+                queue.Queue(),
+                gripper_factory=gripper_factory,
+                sensor_factory=sensor_factory,
+                output_types=OUTPUTS,
+            )
+            worker.prepare()
+            worker.start()
+            time.sleep(0.02)
+            worker.stop()
+            worker.join(2.0)
+            worker.close()
+
+        self.assertEqual(factory_threads, [caller_thread, caller_thread])
 
     def test_xense_partial_startup_releases_acquired_resources(self):
         gripper = FakeGripper("route_mac")
@@ -355,11 +398,10 @@ class WorkerTests(unittest.TestCase):
                 sensor_factory=sensor_factory,
                 output_types=OUTPUTS,
             )
-            worker.start()
-            worker.join(2.0)
+            with self.assertRaisesRegex(RuntimeError, "second sensor unavailable"):
+                worker.prepare()
             self.assertTrue(first_sensor.released)
             self.assertTrue(gripper.released)
-            self.assertFalse(errors.empty())
 
 
 if __name__ == "__main__":

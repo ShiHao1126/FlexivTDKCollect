@@ -2,7 +2,13 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from scripts.collect import CollectArgs, build_config, start_robot_teleop
+from scripts.collect import (
+    CollectArgs,
+    build_config,
+    set_robot_teleop_engaged,
+    start_robot_teleop,
+    stop_robot_teleop,
+)
 
 
 class FakeRobot:
@@ -12,9 +18,6 @@ class FakeRobot:
 
     def prepare(self, **kwargs):
         self.calls.append((self.serial, "prepare", kwargs))
-
-    def switch_tool(self, name):
-        self.calls.append((self.serial, "switch_tool", name))
 
     def close(self):
         self.calls.append((self.serial, "close"))
@@ -32,6 +35,9 @@ class FakeTeleop:
     def Start(self):
         self.calls.append("Start")
 
+    def Engage(self, index, engaged):
+        self.calls.append(("Engage", index, engaged))
+
     def Stop(self):
         self.calls.append("Stop")
 
@@ -41,11 +47,11 @@ class CollectArgsTests(unittest.TestCase):
         args = CollectArgs().parse_args([])
         self.assertEqual(args.leader_sn, "Rizon4s-063652")
         self.assertEqual(args.follower_sn, "Rizon4s-063586")
-        self.assertEqual(args.leader_tool, "gripper")
-        self.assertEqual(args.follower_tool, "xense")
+        self.assertEqual(args.leader_tool, "tool1")
+        self.assertEqual(args.follower_tool, "hapticexoteleop")
         self.assertEqual(args.gripper_macs, ["1659f0e0dde0"])
-        self.assertEqual(args.tactile_sns, ["OG001452", "OG001454"])
-        self.assertEqual(args.serials, [])
+        self.assertEqual(args.tactile_sns, ["OG001452"])
+        self.assertEqual(args.serials, ["327322062498"])
         self.assertEqual((args.width, args.height, args.fps), (640, 480, 30))
         self.assertTrue(args.collect_depth)
         self.assertEqual(args.output, Path("records"))
@@ -60,7 +66,7 @@ class CollectArgsTests(unittest.TestCase):
         self.assertFalse(config.enable_camera)
         self.assertFalse(config.collect_depth)
         self.assertEqual(config.gripper_macs, ("1659f0e0dde0",))
-        self.assertEqual(config.tactile_sns, ("OG001452", "OG001454"))
+        self.assertEqual(config.tactile_sns, ("OG001452",))
 
     def test_disabled_robot_does_not_create_rdk_or_tdk(self):
         args = CollectArgs().parse_args([])
@@ -96,23 +102,40 @@ class CollectArgsTests(unittest.TestCase):
             [
                 (config.leader_sn, "prepare", {
                     "clear_fault": True,
+                    "tool_name": config.leader_tool,
                     "operational_timeout_s": 30.0,
                     "poll_interval_s": 0.1,
+                    "zero_force_timeout_s": 30.0,
                 }),
-                (config.leader_sn, "switch_tool", config.leader_tool),
                 (config.leader_sn, "close"),
                 (config.follower_sn, "prepare", {
                     "clear_fault": True,
+                    "tool_name": config.follower_tool,
                     "operational_timeout_s": 30.0,
                     "poll_interval_s": 0.1,
+                    "zero_force_timeout_s": 30.0,
                 }),
-                (config.follower_sn, "switch_tool", config.follower_tool),
                 (config.follower_sn, "close"),
             ],
         )
         self.assertIs(teleop, teleops[0])
-        self.assertEqual(teleop.calls, ["Init", "Start"])
+        self.assertEqual(
+            teleop.calls,
+            ["Init", "Start", ("Engage", 0, False)],
+        )
         self.assertIsNotNone(source)
+
+
+    def test_teleop_engage_and_stop_are_explicit(self):
+        teleop = FakeTeleop([], [])
+
+        set_robot_teleop_engaged(teleop, True)
+        stop_robot_teleop(teleop)
+
+        self.assertEqual(
+            teleop.calls,
+            [("Engage", 0, True), ("Engage", 0, False), "Stop"],
+        )
 
 
 if __name__ == "__main__":

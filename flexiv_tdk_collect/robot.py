@@ -81,11 +81,14 @@ class RdkFlexivRobot:
         self,
         *,
         clear_fault: bool,
+        tool_name: str | None = None,
         operational_timeout_s: float,
         poll_interval_s: float,
+        zero_force_timeout_s: float = 30.0,
     ) -> None:
         _require_positive("operational_timeout_s", operational_timeout_s)
         _require_positive("poll_interval_s", poll_interval_s)
+        _require_positive("zero_force_timeout_s", zero_force_timeout_s)
         if self._robot.fault():
             if not clear_fault:
                 raise RuntimeError("robot has a fault and fault clearing is disabled")
@@ -103,6 +106,11 @@ class RdkFlexivRobot:
                 "timed out waiting for robot operational state; current status: "
                 f"{self._robot.operational_status()}"
             ),
+        )
+        if tool_name is not None:
+            self.switch_tool(tool_name)
+        self.zero_force_torque(
+            timeout_s=zero_force_timeout_s, poll_interval_s=poll_interval_s
         )
 
     def move_joints(
@@ -164,6 +172,31 @@ class RdkFlexivRobot:
             raise RuntimeError(f"Tool {tool_name!r} does not exist on the robot")
         tool.Switch(tool_name)
 
+    def zero_force_torque(
+        self,
+        *,
+        timeout_s: float,
+        poll_interval_s: float,
+    ) -> None:
+        _require_positive("timeout_s", timeout_s)
+        _require_positive("poll_interval_s", poll_interval_s)
+        if not self._robot.operational():
+            raise RuntimeError(
+                "robot must be operational before force/torque sensor zeroing"
+            )
+
+        self._robot.SwitchMode(self._rdk.Mode.NRT_PRIMITIVE_EXECUTION)
+        self._robot.ExecutePrimitive("ZeroFTSensor", {})
+        self._wait_until(
+            condition=self._force_torque_zeroing_terminated,
+            timeout_s=timeout_s,
+            poll_interval_s=poll_interval_s,
+            timeout_message=lambda: (
+                "timed out waiting for force/torque sensor zeroing to finish"
+            ),
+        )
+        self._robot.SwitchMode(self._rdk.Mode.IDLE)
+
     def stop(self) -> None:
         self._robot.Stop()
 
@@ -171,12 +204,27 @@ class RdkFlexivRobot:
         if self._closed:
             return
         self._closed = True
-        self.stop()
+        try:
+            self.stop()
+        finally:
+            self._robot = None
 
     def _operational(self) -> bool:
         if self._robot.fault():
             raise RuntimeError("robot fault occurred while enabling")
         return bool(self._robot.operational())
+
+    def _force_torque_zeroing_terminated(self) -> bool:
+        if self._robot.fault():
+            raise RuntimeError(
+                "robot fault occurred during force/torque sensor zeroing"
+            )
+        states = self._robot.primitive_states()
+        if "terminated" not in states:
+            raise RuntimeError(
+                "ZeroFTSensor primitive state does not contain 'terminated'"
+            )
+        return bool(states["terminated"])
 
     def _check_joint_limits(self, target_q_rad: np.ndarray) -> None:
         info = self._robot.info()

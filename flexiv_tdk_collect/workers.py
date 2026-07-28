@@ -28,6 +28,12 @@ class Worker(threading.Thread):
             "cleanup_errors": [],
         }
 
+    def prepare(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
     def stop(self) -> None:
         self.stop_event.set()
 
@@ -220,28 +226,70 @@ class XenseWorker(Worker):
         self._gripper_factory = gripper_factory
         self._sensor_factory = sensor_factory
         self._output_types = output_types
+        self._grippers: dict[str, Any] = {}
+        self._sensors: dict[str, Any] = {}
+        self._output_specs: tuple[tuple[str, Any, bool], ...] = ()
+        self._prepared = False
 
-    def collect(self) -> None:
+    def prepare(self) -> None:
+        if self._prepared:
+            return
         gripper_factory = self._gripper_factory
         sensor_factory = self._sensor_factory
         output_types = self._output_types
-        if self.config.enable_gripper and gripper_factory is None:
-            from xensegripper import XenseGripper
-            gripper_factory = XenseGripper.create
-        if self.config.enable_tactile and (sensor_factory is None or output_types is None):
-            from xensesdk import Sensor
-            sensor_factory = Sensor.create
-            output_types = Sensor.OutputType
+        try:
+            if self.config.enable_gripper and gripper_factory is None:
+                from xensegripper import XenseGripper
+                gripper_factory = XenseGripper.create
+            if self.config.enable_tactile and (
+                sensor_factory is None or output_types is None
+            ):
+                from xensesdk import Sensor
+                sensor_factory = Sensor.create
+                output_types = Sensor.OutputType
 
-        output_specs = (
-            ("marker2d", output_types.Marker2D, False),
-            ("force_torque", output_types.ForceResultant, False),
-            ("rectify", output_types.Rectify, True),
-            ("difference", output_types.Difference, True),
-            ("depth", output_types.Depth, True),
-        ) if self.config.enable_tactile else ()
-        grippers: dict[str, Any] = {}
-        sensors: dict[str, Any] = {}
+            if self.config.enable_gripper:
+                for mac in self.config.gripper_macs:
+                    self._grippers[mac] = gripper_factory(mac_addr=mac)
+            if self.config.enable_tactile:
+                mac = self.config.gripper_macs[0]
+                for serial in self.config.tactile_sns:
+                    self._sensors[serial] = sensor_factory(serial, mac_addr=mac)
+                self._output_specs = (
+                    ("marker2d", output_types.Marker2D, False),
+                    ("force_torque", output_types.ForceResultant, False),
+                    ("rectify", output_types.Rectify, True),
+                    ("difference", output_types.Difference, True),
+                    ("depth", output_types.Depth, True),
+                )
+            self._output_types = output_types
+            self._prepared = True
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        for sensor in reversed(tuple(self._sensors.values())):
+            try:
+                sensor.release()
+            except Exception as exc:
+                self.stats["cleanup_errors"].append(str(exc))
+        self._sensors.clear()
+        for gripper in reversed(tuple(self._grippers.values())):
+            release = getattr(gripper, "release", None)
+            if callable(release):
+                try:
+                    release()
+                except Exception as exc:
+                    self.stats["cleanup_errors"].append(str(exc))
+        self._grippers.clear()
+        self._prepared = False
+
+    def collect(self) -> None:
+        if not self._prepared:
+            raise RuntimeError("Xense worker must be prepared before start")
+        output_types = self._output_types
+        output_specs = self._output_specs
         gripper_values = {
             mac: {"timestamp_s": [], "width_m": []}
             for mac in self.config.gripper_macs
@@ -260,26 +308,20 @@ class XenseWorker(Worker):
         index = 0
         writer = None
         try:
-            if self.config.enable_gripper:
-                for mac in self.config.gripper_macs:
-                    grippers[mac] = gripper_factory(mac_addr=mac)
             if self.config.enable_tactile:
-                mac = self.config.gripper_macs[0]
-                for serial in self.config.tactile_sns:
-                    sensors[serial] = sensor_factory(serial, mac_addr=mac)
                 writer = ImageWriter(self.config.image_queue_size, self.stats)
                 writer.start()
 
             outputs = [output for _, output, _ in output_specs]
             while not self.stop_event.is_set():
-                for mac, gripper in grippers.items():
+                for mac, gripper in self._grippers.items():
                     status = gripper.get_gripper_status()
                     gripper_values[mac]["timestamp_s"].append(self.timestamp_s())
                     gripper_values[mac]["width_m"].append(
                         float(status["position"]) / 1000.0
                     )
                 image_batch = []
-                for serial, sensor in sensors.items():
+                for serial, sensor in self._sensors.items():
                     values = sensor.selectSensorInfo(*outputs, output_types.TimeStamp)
                     if not isinstance(values, (tuple, list)) or len(values) != len(output_specs) + 1:
                         raise RuntimeError(f"Xense tactile {serial} output count mismatch")
@@ -306,18 +348,6 @@ class XenseWorker(Worker):
         finally:
             if writer is not None:
                 writer.close()
-            for sensor in reversed(tuple(sensors.values())):
-                try:
-                    sensor.release()
-                except Exception as exc:
-                    self.stats["cleanup_errors"].append(str(exc))
-            for gripper in reversed(tuple(grippers.values())):
-                release = getattr(gripper, "release", None)
-                if callable(release):
-                    try:
-                        release()
-                    except Exception as exc:
-                        self.stats["cleanup_errors"].append(str(exc))
             self.stats["samples"] = index
             for mac, values in gripper_values.items():
                 if self.config.enable_gripper:

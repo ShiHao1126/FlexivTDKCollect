@@ -76,6 +76,12 @@ class SessionTests(unittest.TestCase):
                 self.stats = {"samples": 1, "write_errors": 0, "cleanup_errors": []}
                 created.append(self)
 
+            def prepare(self):
+                pass
+
+            def close(self):
+                pass
+
             def start(self):
                 pass
 
