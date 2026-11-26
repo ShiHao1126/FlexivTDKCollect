@@ -1,0 +1,88 @@
+{
+  "date": "2026-11-26",
+  "source_root": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026",
+  "entries": [
+    {
+      "path": "config.tdk_force_only.yaml",
+      "sha256": "49e254f79c425bc86dad11f2a150b0a81ee4c509456e1798c8347c0ce0d3a5d2",
+      "status": "original_unchanged",
+      "note": "Unchanged recovered configuration; historical hardware values not revalidated.",
+      "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\config.tdk_force_only.yaml",
+      "source_sha256": "49e254f79c425bc86dad11f2a150b0a81ee4c509456e1798c8347c0ce0d3a5d2"
+    },
+    {
+      "path": "flexiv_capture/__init__.py",
+      "sha256": "7ef93ed120fb73880b7afb4002c625718b6956eb0fea4a62f49d4a49c4c8fe21",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "flexiv_capture/config.py",
+      "sha256": "75ff43e9cf3ef0801e93fd6bbc2e413ca1efc210434aca3de2769d19a901b116",
+      "status": "adapted_from_recovered",
+      "note": "Recovered full configuration validator plus force-only scope guard.",
+      "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\flexiv_capture\\config.py",
+      "source_sha256": "f01fc0be26f0ab95648afa80c0af44dabe3d3852eceb155ea4f8ef80a591cff8"
+    },
+    {
+      "path": "flexiv_capture/hdf5_io.py",
+      "sha256": "1df7d067e3fb0114bb95ecd12bca3df54ac3d2949bde502dfa7cbdb5ae430553",
+      "status": "adapted_from_recovered",
+      "note": "Recovered writer; fsync uses r+b instead of rb for confirmed Windows compatibility.",
+      "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\flexiv_capture\\hdf5_io.py",
+      "source_sha256": "067edee72988d3e8987ee36b6bd7b7ce5c49743072c35bce0355af8842edf59a"
+    },
+    {
+      "path": "flexiv_capture/recording.py",
+      "sha256": "5b7e66d7b51e9b246cea5e6baedb397c41a0e1c01602f6e1de6dafaea8f0d13c",
+      "status": "adapted_from_recovered",
+      "note": "Rebuilt force-only acquisition around recovered writer/controller and original WorkerStats. Atomic bilateral queue, faulted partial retention, explicit final validation.",
+      "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\flexiv_capture\\recording.py",
+      "source_sha256": "fe153442f967986045b1344c2c20a1bd8e8e5ada668f22766dce0a2e6db459a9"
+    },
+    {
+      "path": "flexiv_capture/robot_control.py",
+      "sha256": "ad8a3ee0a42c73d34c439f7ce35187b79033183093a5638871336539c10e2bc4",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "flexiv_capture/teleop_control.py",
+      "sha256": "f9abef0b0ba79312e9cb528ae03492f921b1b1e401d098baf63d6cc5de75dd22",
+      "status": "adapted_from_recovered",
+      "note": "Recovered TDK controller; added expected-Stop handle reconnection in health check and cleanup on Home Init failure.",
+      "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\flexiv_capture\\teleop_control.py",
+      "source_sha256": "63fe303b99f675e3140fd6cd80893e15a2330f8841cc4362c7fbb90dc0edc9e7"
+    },
+    {
+      "path": "flexiv_capture/validation.py",
+      "sha256": "4e4047a192a654cd5240d22ed969070c26d7874607a54fc1683cc1b069a70b0f",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "scripts/collect.py",
+      "sha256": "bb17eef92a8ab2c33cb5681c01197fed875d9b048bf994f0b02a501ff750ea28",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "scripts/tests/fakes.py",
+      "sha256": "a7123de16b00024d9d25325178f1031c17aea20b858a53624550d359c427ee7d",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "scripts/tests/test_offline.py",
+      "sha256": "90aa705aa235f44fddb768163600452f579639a682ec66e7b359085e454d7946",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "scripts/validate_record.py",
+      "sha256": "014aa588e96589a62a2b897b2444c76b7a30ecc032329cf019687d574cf476ba",
+      "status": "reconstructed",
+      "note": "New implementation or offline test, not recovered original code."
+    }
+  ]
+}

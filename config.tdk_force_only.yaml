@@ -1,0 +1,131 @@
+robot:
+  control_mode: tdk  # tdk or floating; legacy setup: config.floating.yaml
+  # Task-side follower. /robot and robot0 always refer to this arm.
+  robot_sn: Rizon4R-062115
+  network_interfaces:
+    - 192.168.97.10
+  rate_hz: 100.0
+
+teleop:
+  leader_sn: Rizon4R-062116
+  lock_coordinate: tcp  # tcp or world; coordinate frame of the leader
+  locked_axes: []  # All TCP translation and rotation axes remain free
+  feedback_scale: 0.75
+  # Nominal-stiffness ratios in WORLD X/Y/Z/Rx/Ry/Rz order.
+  # At the saved Home pose, TCP Y aligns with WORLD -Z. This fixed WORLD Rz
+  # increase approximates TCP Ry stiffness there; it does not track TCP rotation.
+  follower_stiffness: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  max_contact_wrench: [25.0, 25.0, 25.0, 40.0, 40.0, 40.0]
+  limit_wrist_singular: false  # Same setting as flexiv/start_teleop.py
+  state_stale_timeout_s: 0.25
+  max_age_ms: 25.0
+
+camera:
+  enabled: false
+  serial_number: f1422770
+  width: 640
+  height: 480
+  color_fps: 60
+  depth_fps: 30
+  # Enable automatic exposure, but prevent it from lowering the requested
+  # RGB frame rate to extend exposure time.
+  color_options:
+    enable_auto_exposure: 1
+    auto_exposure_priority: 0
+  # The task workspace is expected at 0.20-0.70 m. Keep a small margin for
+  # depth noise at both ends; samples outside this interval are stored as 0.
+  depth_range_m:
+    min: 0.19
+    max: 0.75
+  # L515 Short Range preset, made explicit so every recording is reproducible.
+  # min_distance is expressed in millimetres by the L515 firmware.
+  depth_options:
+    visual_preset: short_range
+    digital_gain: 2
+    laser_power: 100
+    confidence_threshold: 1
+    min_distance: 190
+    receiver_gain: 18
+    post_processing_sharpening: 1
+    pre_processing_sharpening: 0
+    noise_filtering: 4
+    invalidation_bypass: 0
+
+wrist_camera:
+  # Preserve the D405's existing automatic exposure setting. Do not write
+  # enable_auto_exposure: firmware 5.15.1.55 / SDK 2.54.2 can freeze on writes.
+  enabled: false
+  serial_number: "260322275475"
+  width: 640
+  height: 480
+  fps: 60
+  queue_size: 128
+  max_age_ms: 50.0
+
+tactile:
+  # Physical left/right assignment confirmed on 2026-09-18.
+  left:
+    enabled: false
+    device_id: OG001453
+    mac_addr: "8a429d6ea337"
+    rate_hz: 50.0
+    queue_size: 128
+    max_age_ms: 80.0
+    color_order: bgr
+  right:
+    enabled: false
+    device_id: OG001455
+    mac_addr: "8a429d6ea337"
+    rate_hz: 50.0
+    queue_size: 128
+    max_age_ms: 80.0
+    color_order: bgr
+
+gripper:
+  enabled: false
+  mac_addr: "8a429d6ea337"
+  rate_hz: 30.0
+  queue_size: 128
+  max_age_ms: 100.0
+
+gripper_teleop:
+  # Runs continuously through arm resets; the spring-return encoder opens the gripper.
+  enabled: false
+  # Verified encoder adapter; currently resolves to /dev/ttyUSB1.
+  port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+  index: 1
+  baudrate: 1000000
+  gap: -1.0
+  strict: true
+  read_timeout_s: 0.05
+  max_attempts: 3
+  # Measured at spring release and full press on 2026-09-18.
+  open_angle_deg: 351.5625
+  close_angle_deg: 314.384765625
+  open_width_m: 0.08
+  close_width_m: 0.0
+  rate_hz: 50.0
+  deadband_m: 0.0001
+  velocity_m_s: 0.08
+  force_n: 27.0
+  queue_size: 256
+  max_age_ms: 100.0
+
+recording:
+  robot_queue_size: 2048
+  color_queue_size: 128
+  depth_queue_size: 64
+  flush_interval_s: 0.05
+  compression: gzip
+  compression_level: 4
+  compression_workers: 4
+
+episode_reset:
+  # Reset both arms to the same verified joint-angle Home. No WORLD TCP target
+  # or Cartesian redundancy reference is shared.
+  leader_home_q_deg: [0, -40, 0, 90, 0, 40, 0]
+  follower_home_q_deg: [0, -40, 0, 90, 0, 40, 0]
+  movej_velocity_scale: 5  # Direct joint speed = dq_max * 20% * this%; preserves prior scaling
+  position_tolerance_deg: 1.0
+  enable_timeout_s: 30.0
+  motion_timeout_s: 120.0

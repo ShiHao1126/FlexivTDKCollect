@@ -1,4 +1,7 @@
+.venv/
 __pycache__/
 *.py[cod]
-.inprogress/
-records/
+recordings/
+offline_validation/
+*.hdf5
+*.h5

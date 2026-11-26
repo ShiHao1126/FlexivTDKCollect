@@ -1,0 +1,8 @@
+# Portable offline components; verified on Python 3.13.11 / Windows.
+numpy>=1.24,<3
+scipy>=1.10,<2
+PyYAML>=6,<7
+h5py==3.16.0
+typed-argument-parser==1.12.0
+# Native SDKs intentionally excluded. Historical Linux Python 3.10 runtime:
+# flexivrdk==1.9.2 and flexivtdk==1.6.2. Not installed or tested in this rebuild.

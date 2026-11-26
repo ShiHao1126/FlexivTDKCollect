@@ -1,210 +1,54 @@
-#!/usr/bin/env python3
+"""No-camera bilateral TDK collection. Default execution only validates config."""
 from pathlib import Path
+import json
+import math
 import sys
-from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 from tap import Tap
-
-ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from flexiv_tdk_collect import (
-    CollectConfig,
-    CollectionSession,
-    RdkFlexivRobot,
-    TdkFlexivStateSource,
-)
+from flexiv_capture.config import load_config, validate_force_only_config
 
 
-class CollectArgs(Tap):
-    # Robot
-    enable_robot: bool = True
-    leader_sn: str = "Rizon4s-063652"
-    follower_sn: str = "Rizon4s-063586"
-    leader_tool: str = "tool1"
-    follower_tool: str = "hapticexoteleop"
-    lan_ip: list[str] = []
-    output: Path = Path("records")
-    robot_rate: float = 200.0
-
-    # Gripper
-    enable_gripper: bool = True
-    gripper_macs: list[str] = ["1659f0e0dde0"]
-    enable_tactile: bool = True
-    # tactile_sns: list[str] = ["OG001452", "OG001454"]
-    tactile_sns: list[str] = ["OG001452"]
-    xense_rate: float = 60.0
-
-    # Camera
-    enable_camera: bool = True
-    serials: list[str] = ["327322062498"]
-    width: int = 640
-    height: int = 480
-    fps: int = 30
-    collect_depth: bool = True
-
-    def configure(self) -> None:
-        self.description = "Flexiv TDK synchronized data collection"
-        self.add_argument("--lan-ip", action="append", default=self.lan_ip)
-        self.add_argument("--gripper-macs", action="append", default=self.gripper_macs)
-        self.add_argument("--tactile-sns", action="append", default=self.tactile_sns)
-        self.add_argument("--serials", action="append", default=self.serials)
-        for name in (
-            "enable_robot",
-            "enable_gripper",
-            "enable_tactile",
-            "enable_camera",
-            "collect_depth",
-        ):
-            self.add_argument(
-                f"--{name.replace('_', '-')}",
-                dest=name,
-                type=_parse_bool,
-                default=getattr(self, name),
-            )
-
-
-def _parse_bool(value: str) -> bool:
-    normalized = value.strip().lower()
-    if normalized in {"true", "1", "yes", "on"}:
-        return True
-    if normalized in {"false", "0", "no", "off"}:
-        return False
-    raise ValueError(f"expected true or false, got {value!r}")
-
-
-def build_config(args: CollectArgs) -> CollectConfig:
-    return CollectConfig(
-        output_dir=args.output.resolve(),
-        enable_robot=args.enable_robot,
-        leader_sn=args.leader_sn,
-        follower_sn=args.follower_sn,
-        leader_tool=args.leader_tool,
-        follower_tool=args.follower_tool,
-        lan_ips=tuple(args.lan_ip),
-        robot_rate_hz=args.robot_rate,
-        enable_gripper=args.enable_gripper,
-        gripper_macs=tuple(args.gripper_macs),
-        enable_tactile=args.enable_tactile,
-        tactile_sns=tuple(args.tactile_sns),
-        xense_rate_hz=args.xense_rate,
-        enable_camera=args.enable_camera,
-        camera_serials=tuple(args.serials),
-        camera_width=args.width,
-        camera_height=args.height,
-        camera_fps=args.fps,
-        collect_depth=args.collect_depth,
-    )
-
-
-def start_robot_teleop(
-    config: CollectConfig,
-    *,
-    robot_factory: Any = RdkFlexivRobot,
-    tdk_module: Any = None,
-) -> tuple[Any, TdkFlexivStateSource] | tuple[None, None]:
-    if not config.enable_robot:
-        return None, None
-
-    for robot_sn, tool_name in (
-        (config.leader_sn, config.leader_tool),
-        (config.follower_sn, config.follower_tool),
-    ):
-        robot = robot_factory(robot_sn)
-        try:
-            robot.prepare(
-                clear_fault=True,
-                tool_name=tool_name,
-                operational_timeout_s=30.0,
-                poll_interval_s=0.1,
-                zero_force_timeout_s=30.0,
-            )
-        finally:
-            robot.close()
-
-    if tdk_module is None:
-        import flexivtdk as tdk_module
-    teleop = tdk_module.TransparentCartesianTeleopLAN(
-        [(config.leader_sn, config.follower_sn)], list(config.lan_ips)
-    )
-    try:
-        print("Initializing TDK (robot enable and FT zeroing may occur)...")
-        teleop.Init()
-        teleop.Start()
-        set_robot_teleop_engaged(teleop, False)
-    except Exception:
-        try:
-            teleop.Stop()
-        except Exception:
-            pass
-        raise
-    return teleop, TdkFlexivStateSource(teleop, robot="follower")
-
-
-def set_robot_teleop_engaged(teleop: Any, engaged: bool) -> None:
-    teleop.Engage(0, engaged)
-
-
-def stop_robot_teleop(teleop: Any) -> None:
-    try:
-        set_robot_teleop_engaged(teleop, False)
-    finally:
-        teleop.Stop()
+class Args(Tap):
+    config: Path = ROOT / "config.tdk_force_only.yaml"
+    output: Path = ROOT / "recordings"
+    execute: bool = False  # False: offline configuration check; True: connects to hardware.
+    duration_s: float = 30.0  # Recording duration per episode, seconds.
+    reset_home: bool = False  # Explicit optional motion before recording.
 
 
 def main() -> int:
-    args = CollectArgs().parse_args()
-    config = build_config(args)
-    teleop = None
-    session = None
+    args = Args().parse_args()
+    config = load_config(args.config)
+    validate_force_only_config(config)
+    if not math.isfinite(args.duration_s) or args.duration_s <= 0:
+        raise ValueError("duration_s must be finite and positive")
+    print(json.dumps({"mode": "tdk_force_only", "execute": args.execute,
+                      "leader": config["teleop"]["leader_sn"], "follower": config["robot"]["robot_sn"],
+                      "duration_s": args.duration_s, "reset_home": args.reset_home}, indent=2))
+    if not args.execute:
+        print("Offline configuration check passed. No hardware SDK imported or connected.")
+        return 0
+    if sys.platform != "linux":
+        raise RuntimeError("Hardware execution is restricted to the original Linux SDK environment")
+    print("Check serial numbers, workspace, unloaded FT sensors and reachable emergency stop.")
+    if input("Type RUN to initialize/zero and engage both arms: ").strip() != "RUN":
+        return 0
+    from flexiv_capture.recording import Recorder, finalize
+    recorder = Recorder(config, args.output)
     try:
-        teleop, robot_state_source = start_robot_teleop(config)
-        session = CollectionSession(robot_state_source, config)
-        print(
-            "Ready: r=engage, R=disengage, "
-            "c=start record, v=finish record, q=quit"
-        )
-        while True:
-            command = input("> ").strip()
-            normalized = command.lower()
-            if command == "r":
-                set_robot_teleop_engaged(teleop, True)
-                print("Teleoperation engaged")
-            elif command == "R":
-                set_robot_teleop_engaged(teleop, False)
-                print("Teleoperation disengaged")
-            elif normalized == "c":
-                if session.recording:
-                    print("Already recording")
-                else:
-                    print(f"Recording: {session.start()}")
-            elif normalized == "v":
-                if session.recording:
-                    print(f"Saved: {session.finish()}")
-                else:
-                    print("No active record")
-            elif normalized == "q":
-                if session.recording:
-                    print(f"Interrupted record: {session.finish('operator_quit')}")
-                return 0
-            else:
-                print("Command must be r, R, c, v, or q")
-    except (KeyboardInterrupt, EOFError):
-        if session is not None and session.recording:
-            print(f"\nInterrupted record: {session.finish('interrupted')}")
-        return 130
-    except Exception as exc:
-        if session is not None and session.recording:
-            print(f"Invalid record: {session.finish('runtime_error')}")
-        print(f"Collection failed: {exc}")
-        return 1
+        reset = recorder.reset_paired_home() if args.reset_home else None
+        partial, final, stats = recorder.record_episode(args.duration_s, start_reset=reset)
+        print(json.dumps(stats, indent=2))
+        if input("Both arms stopped. Type SAVE to publish this episode: ").strip() == "SAVE":
+            print(json.dumps(finalize(partial, final), indent=2))
+            print(final)
+        else:
+            print(f"Retained unapproved partial: {partial}")
     finally:
-        if teleop is not None:
-            try:
-                stop_robot_teleop(teleop)
-            except Exception as exc:
-                print(f"TDK stop failed: {exc}")
+        recorder.close()
+    return 0
 
 
 if __name__ == "__main__":

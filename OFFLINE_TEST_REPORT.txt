@@ -1,0 +1,57 @@
+{
+  "date": "2026-11-26",
+  "hardware_executed": false,
+  "ssh_accessed": false,
+  "environment": {
+    "python": "3.13.11 | packaged by Anaconda, Inc. | (main, Dec 10 2025, 21:21:58) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26100-SP0",
+    "packages": {
+      "numpy": "2.4.2",
+      "scipy": "1.17.1",
+      "PyYAML": "6.0.3",
+      "h5py": "3.16.0",
+      "typed-argument-parser": "1.12.0"
+    }
+  },
+  "ast_files_passed": 11,
+  "unittest": {
+    "command": ".venv\\Scripts\\python.exe -m unittest discover -s scripts/tests -p test_*.py -v",
+    "tests": 28,
+    "result": "PASS",
+    "elapsed_s": 3.346
+  },
+  "reference_synthetic_episode": "D:\\Study\\Haptic\\TDK_force_only_rebuilt\\offline_validation\\reference_20261126_124138\\episode_0000.hdf5",
+  "reference_validation": {
+    "samples_per_arm": 103,
+    "max_pair_skew_ms": 0.538,
+    "duration_s": 1.0200052
+  },
+  "reference_statistics": {
+    "leader": {
+      "samples": 103,
+      "queue_drops": 0,
+      "source_errors": 0,
+      "missed_frames": 0,
+      "duration_s": 1.0200334,
+      "rate_hz": 99.99672559741671,
+      "max_gap_ms": 19.3998
+    },
+    "robot": {
+      "samples": 103,
+      "queue_drops": 0,
+      "source_errors": 0,
+      "missed_frames": 0,
+      "duration_s": 1.0200052000000002,
+      "rate_hz": 99.9994901986774,
+      "max_gap_ms": 19.355
+    },
+    "wall_duration_s": 1.0396137999996427
+  },
+  "limits": [
+    "No real SDK installed or imported",
+    "No hardware, Linux runtime, force calibration or control stability validation",
+    "No cameras/tactile/gripper",
+    "100 Hz is requested sampling cadence, not a hard real-time guarantee"
+  ],
+  "diff_whitespace_check": "PASS: git diff --no-index --check on five recovered/adapted files"
+}
