@@ -46,6 +46,7 @@ class Block:
         if fullname.split('.')[0] in {'flexivrdk', 'flexivtdk', 'pyrealsense2', 'xensesdk'}:
             raise AssertionError('Hardware import attempted: ' + fullname)
 sys.meta_path.insert(0, Block())
+sys.argv = ['collect.py', '--check_only']
 runpy.run_path('scripts/collect.py', run_name='__main__')
 '''
         result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True)

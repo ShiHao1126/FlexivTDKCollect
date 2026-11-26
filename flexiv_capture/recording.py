@@ -132,7 +132,7 @@ class Recorder:
         return self.output / f"episode_{index:04d}.partial.hdf5", final
 
     def record_episode(self, duration_s: float | None, *, stop_event: threading.Event | None = None,
-                       start_reset: dict | None = None) -> tuple[Path, Path, dict]:
+                       start_reset: dict | None = None, progress=None) -> tuple[Path, Path, dict]:
         """Return a closed partial file; finalize() validates it before renaming."""
         self.check_teleop_health()
         if duration_s is not None and (not math.isfinite(duration_s) or duration_s <= 0):
@@ -206,6 +206,8 @@ class Recorder:
                 writer.append_stream("leader", [leader for leader, _ in batch])
 
         try:
+            if stop_event is not None and stop_event.is_set():
+                raise RuntimeError("Recording cancelled before activation")
             self.start_teleop()
             wall_started = time.monotonic()
             thread = threading.Thread(target=robot_worker, name="tdk-paired-state-reader", daemon=True)
@@ -219,6 +221,9 @@ class Recorder:
                     raise TimeoutError("No paired robot state arrived within 2 seconds")
                 drain()
                 writer.flush()
+                if progress is not None:
+                    progress({"leader": leader_stats.as_dict(), "robot": robot_stats.as_dict(),
+                              "elapsed_s": time.monotonic() - wall_started})
                 stop.wait(recording["flush_interval_s"])
             stop.set()
             thread.join(timeout=2.0)

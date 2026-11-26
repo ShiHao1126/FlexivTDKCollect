@@ -53,5 +53,13 @@
     "No cameras/tactile/gripper",
     "100 Hz is requested sampling cadence, not a hard real-time guarantee"
   ],
-  "diff_whitespace_check": "PASS: git diff --no-index --check on five recovered/adapted files"
+  "diff_whitespace_check": "PASS: git diff --no-index --check on five recovered/adapted files",
+  "manual_ui_validation": {
+    "tests": 34,
+    "elapsed_s": 4.73,
+    "result": "PASS",
+    "ast_files": 13,
+    "tk_widget_tests": "Real Tk widgets with fake SDK: start/stop/close and offline disabled controls",
+    "hardware_executed": false
+  }
 }

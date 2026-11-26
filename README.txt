@@ -10,20 +10,24 @@ TDK 两臂控制 -> 100 Hz 双侧状态采样 -> HDF5 -> 独立离线校验。
 
 本地入口（PowerShell，工作目录为本项目）
   & .\.venv\Scripts\python.exe scripts/collect.py
-默认 execute=False：仅检查配置，不导入硬件 SDK、不连接、不使能、不运动。
+默认 execute=False：打开离线预览窗口，采集按钮禁用，不连接、不使能、不运动。
+只检查配置并退出：python scripts/collect.py --check_only
   & .\.venv\Scripts\python.exe -m unittest discover -s scripts/tests -p 'test_*.py' -v
   & .\.venv\Scripts\python.exe scripts/validate_record.py --path <HDF5文件路径>
 测试产物保留于 offline_validation/<运行标识>/，全部是假设备合成数据。
 测试不会批量删除任何文件；正式保存只移除已验证且已创建最终硬链接的那个 partial 文件。
 
 入口参数
-scripts/collect.py 开头 Args 集中设置 config、output、execute、duration_s、reset_home。
-重建入口使用定时单 episode（默认 30 秒），结束后停止两臂，再询问 SAVE。
-没有保存确认时保留 .partial.hdf5；异常 partial 带 failure_json，校验拒绝发布。
-Ctrl+C 走异常清理，不把中断片段当作成功 episode。
-execute=True 仅允许 Linux，且要求显式输入 RUN；本轮没有执行该分支。
+scripts/collect.py 开头 Args 集中设置 config、output、execute、check_only、reset_home。
+窗口点击“开始采集”并确认后初始化并启用遥操作，无采集时长上限。
+点击“停止并保存”或按 Esc：停止遥操作、校验数据、自动保存本段 HDF5。
+关闭窗口同样请求停止并保存，清理完成后窗口才退出。可连续采集多段。
+异常只保留 partial，不自动发布；窗口锁定故障并显示错误，详情在 session_errors.log。
+execute=True 仅允许 Linux，并且每次开始都要求窗口确认；本轮仅测试假 SDK。
+窗口使用 Tkinter（Python 的 Tk 组件）；Linux 运行需要图形桌面及对应环境的 Tk。
+停止请求不能强行打断阻塞的原生 SDK 调用，不能代替物理急停。
 reset_home=False 为新入口的安全默认；开启后才调用继承的双臂关节 Home。
-底层 recorder 支持 stop_event 停止及同进程多 episode，但原交互快捷键界面没有复原。
+底层 recorder 使用 stop_event 手动停止；原快捷键菜单未复原，由新窗口提供开始/停止操作。
 
 配置与数据协议
 config.tdk_force_only.yaml 原样复制。相机、腕相机、触觉与夹爪均禁止启用。
@@ -52,7 +56,7 @@ host_time_ns 是本机单调时钟，不是Unix时间；robot_time_ns 按 SDK �
 原 Linux Python3.10 + flexivrdk1.9.2 + flexivtdk1.6.2 未在本机安装/验证。
 假设备覆盖 API 调用顺序和文件契约，无法证明真实 SDK 参数、线程阻塞行为、
 传感器零偏/标定、控制稳定性、实际100Hz时序、急停或力反馈方向。
-未重建相机/触觉/夹爪、原完整交互UI、数据集训练格式转换和原环境安装脚本。
+未重建相机/触觉/夹爪、原完整快捷键菜单、数据集训练格式转换和原环境安装脚本。
 若以后部署，应先单独确认设备序列号、工具负载与归零条件；本轮未部署。
 
 溯源

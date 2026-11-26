@@ -34,11 +34,13 @@
     },
     {
       "path": "flexiv_capture/recording.py",
-      "sha256": "5b7e66d7b51e9b246cea5e6baedb397c41a0e1c01602f6e1de6dafaea8f0d13c",
+      "sha256": "e826ef5d2709edaab185a8656cb22933e9d6978f9ac164acf55f26b1f6e2032f",
       "status": "adapted_from_recovered",
       "note": "Rebuilt force-only acquisition around recovered writer/controller and original WorkerStats. Atomic bilateral queue, faulted partial retention, explicit final validation.",
       "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\flexiv_capture\\recording.py",
-      "source_sha256": "fe153442f967986045b1344c2c20a1bd8e8e5ada668f22766dce0a2e6db459a9"
+      "source_sha256": "fe153442f967986045b1344c2c20a1bd8e8e5ada668f22766dce0a2e6db459a9",
+      "previous_rebuild_sha256": "5b7e66d7b51e9b246cea5e6baedb397c41a0e1c01602f6e1de6dafaea8f0d13c",
+      "manual_ui_update": "2026-11-26: manual GUI collection, progress reporting or updated entrypoint test."
     },
     {
       "path": "flexiv_capture/robot_control.py",
@@ -62,9 +64,11 @@
     },
     {
       "path": "scripts/collect.py",
-      "sha256": "bb17eef92a8ab2c33cb5681c01197fed875d9b048bf994f0b02a501ff750ea28",
+      "sha256": "f2b15b46f6a84b561927d88db9fc8c284862df67396a34ed2556f4c53bcdab7c",
       "status": "reconstructed",
-      "note": "New implementation or offline test, not recovered original code."
+      "note": "New implementation or offline test, not recovered original code.",
+      "previous_rebuild_sha256": "bb17eef92a8ab2c33cb5681c01197fed875d9b048bf994f0b02a501ff750ea28",
+      "manual_ui_update": "2026-11-26: manual GUI collection, progress reporting or updated entrypoint test."
     },
     {
       "path": "scripts/tests/fakes.py",
@@ -74,15 +78,29 @@
     },
     {
       "path": "scripts/tests/test_offline.py",
-      "sha256": "90aa705aa235f44fddb768163600452f579639a682ec66e7b359085e454d7946",
+      "sha256": "b69df6dc3cb25258d929eccbbf2c0ed95bcc170e80e53b068d096ed3e4672566",
       "status": "reconstructed",
-      "note": "New implementation or offline test, not recovered original code."
+      "note": "New implementation or offline test, not recovered original code.",
+      "previous_rebuild_sha256": "90aa705aa235f44fddb768163600452f579639a682ec66e7b359085e454d7946",
+      "manual_ui_update": "2026-11-26: manual GUI collection, progress reporting or updated entrypoint test."
     },
     {
       "path": "scripts/validate_record.py",
       "sha256": "014aa588e96589a62a2b897b2444c76b7a30ecc032329cf019687d574cf476ba",
       "status": "reconstructed",
       "note": "New implementation or offline test, not recovered original code."
+    },
+    {
+      "path": "flexiv_capture/desktop.py",
+      "sha256": "54b7d20574848f97f271941b741eb3be92c26d6cd9fb8b5b8111dc3b063f80a1",
+      "status": "reconstructed",
+      "note": "New manual collection GUI/lifecycle and offline tests, not recovered original code."
+    },
+    {
+      "path": "scripts/tests/test_manual.py",
+      "sha256": "95cffac9311e36a8ce0f2b6202cb268a174f2a451a3928ea0b68f12108511dc9",
+      "status": "reconstructed",
+      "note": "New manual collection GUI/lifecycle and offline tests, not recovered original code."
     }
   ]
 }
