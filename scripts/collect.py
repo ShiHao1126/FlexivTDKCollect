@@ -1,4 +1,4 @@
-"""Manual no-camera bilateral TDK collection with a desktop operator interface."""
+"""Manual no-camera bilateral TDK collection with terminal or desktop interfaces."""
 from pathlib import Path
 import sys
 
@@ -11,7 +11,8 @@ from flexiv_capture.config import load_config, validate_force_only_config
 class Args(Tap):
     config: Path = ROOT / "config.tdk_force_only.yaml"
     output: Path = ROOT / "recordings"
-    execute: bool = False  # False: offline GUI preview; True: allow hardware start.
+    interface: str = "terminal"  # terminal for SSH; gui for a graphical desktop.
+    execute: bool = False  # False: offline preview; True: allow hardware start.
     check_only: bool = False  # Validate config and exit without opening a window.
     reset_home: bool = False  # Optional joint Home before each episode.
 
@@ -25,9 +26,15 @@ def main() -> int:
         return 0
     if args.execute and sys.platform != "linux":
         raise RuntimeError("Hardware execution is restricted to the original Linux SDK environment")
-    from flexiv_capture.desktop import run_window
-    run_window(config, args.output, execute=args.execute, reset_home=args.reset_home)
-    return 0
+    if args.interface == "terminal":
+        from flexiv_capture.manual_session import ManualSession
+        from flexiv_capture.terminal import run_terminal
+        return run_terminal(ManualSession(config, args.output, reset_home=args.reset_home), execute=args.execute)
+    if args.interface == "gui":
+        from flexiv_capture.desktop import run_window
+        run_window(config, args.output, execute=args.execute, reset_home=args.reset_home)
+        return 0
+    raise ValueError("interface must be terminal or gui")
 
 
 if __name__ == "__main__":

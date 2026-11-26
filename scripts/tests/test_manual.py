@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import os
 import threading
 import time
 import unittest
@@ -82,6 +83,7 @@ class ManualTests(unittest.TestCase):
         self.assertFalse(any(p for p in self.output.glob("episode_*.hdf5") if '.partial.' not in p.name))
         self.assertTrue((self.output / 'session_errors.log').exists())
 
+    @unittest.skipIf(sys.platform == 'linux' and not os.environ.get('DISPLAY'), 'GUI requires a display; terminal tests still run')
     def test_gui_buttons_stop_and_close_save(self):
         import tkinter as tk
         root = tk.Tk()
@@ -91,7 +93,11 @@ class ManualTests(unittest.TestCase):
             with patch.object(window.messagebox, 'askokcancel', return_value=True):
                 window.start_button.invoke()
             self.wait_recording()
-            root.update()
+            deadline = time.monotonic() + 2
+            while str(window.stop_button['state']) != 'normal' and time.monotonic() < deadline:
+                root.update()
+                time.sleep(.01)
+            self.assertEqual(str(window.stop_button['state']), 'normal')
             window.stop_button.invoke()
             self.session.thread.join(3)
             self.assertEqual(self.session.snapshot()['state'], 'saved')
@@ -103,8 +109,11 @@ class ManualTests(unittest.TestCase):
             self.session.thread.join(3)
             self.assertEqual(self.session.snapshot()['state'], 'saved')
         finally:
+            for callback in root.tk.call('after', 'info'):
+                root.after_cancel(callback)
             root.destroy()
 
+    @unittest.skipIf(sys.platform == 'linux' and not os.environ.get('DISPLAY'), 'GUI requires a display; terminal tests still run')
     def test_offline_gui_never_creates_recorder(self):
         import tkinter as tk
         root = tk.Tk()
@@ -117,7 +126,10 @@ class ManualTests(unittest.TestCase):
             self.assertIsNone(self.session.thread)
             self.assertEqual(self.sdk.connections, [])
             self.assertEqual(str(window.start_button['state']), 'disabled')
-        finally: root.destroy()
+        finally:
+            for callback in root.tk.call('after', 'info'):
+                root.after_cancel(callback)
+            root.destroy()
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

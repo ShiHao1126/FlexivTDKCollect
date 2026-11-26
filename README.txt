@@ -10,7 +10,11 @@ TDK 两臂控制 -> 100 Hz 双侧状态采样 -> HDF5 -> 独立离线校验。
 
 本地入口（PowerShell，工作目录为本项目）
   & .\.venv\Scripts\python.exe scripts/collect.py
-默认 execute=False：打开离线预览窗口，采集按钮禁用，不连接、不使能、不运动。
+默认 interface=terminal、execute=False：终端离线预览，不连接、不使能、不运动。
+终端命令需回车：r 请求开始，再输入 RUN 确认；s 停止并保存；q 保存后退出。
+SSH 挂断信号、EOF、Ctrl+C 请求停止并将中断片段标记失败，保留 partial。
+网络断开到系统发出信号可能有延迟，软件清理不替代物理急停。
+图形窗口使用 --interface gui；以下窗口按钮说明适用于 GUI 模式。
 只检查配置并退出：python scripts/collect.py --check_only
   & .\.venv\Scripts\python.exe -m unittest discover -s scripts/tests -p 'test_*.py' -v
   & .\.venv\Scripts\python.exe scripts/validate_record.py --path <HDF5文件路径>
@@ -18,7 +22,7 @@ TDK 两臂控制 -> 100 Hz 双侧状态采样 -> HDF5 -> 独立离线校验。
 测试不会批量删除任何文件；正式保存只移除已验证且已创建最终硬链接的那个 partial 文件。
 
 入口参数
-scripts/collect.py 开头 Args 集中设置 config、output、execute、check_only、reset_home。
+scripts/collect.py 开头 Args 集中设置 config、output、interface、execute、check_only、reset_home。
 窗口点击“开始采集”并确认后初始化并启用遥操作，无采集时长上限。
 点击“停止并保存”或按 Esc：停止遥操作、校验数据、自动保存本段 HDF5。
 关闭窗口同样请求停止并保存，清理完成后窗口才退出。可连续采集多段。

@@ -61,5 +61,15 @@
     "ast_files": 13,
     "tk_widget_tests": "Real Tk widgets with fake SDK: start/stop/close and offline disabled controls",
     "hardware_executed": false
+  },
+  "terminal_validation": {
+    "platform": "Windows",
+    "discovered": 41,
+    "passed": 40,
+    "skipped": 1,
+    "skip_reason": "POSIX signal subprocess test requires Linux",
+    "elapsed_s": 5.508,
+    "ast_files": 16,
+    "hardware_executed": false
   }
 }
