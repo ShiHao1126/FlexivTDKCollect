@@ -142,7 +142,7 @@ class ManualTests(unittest.TestCase):
         root = tk.Tk(); root.withdraw()
         window = CollectionWindow(root, self.session, execute=True)
         try:
-            with patch.object(window.messagebox,'askokcancel',return_value=True):
+            with patch.object(window.messagebox,'askokcancel',side_effect=AssertionError('Unexpected confirmation')):
                 window.home()
                 self.wait_state('ready')
                 window.engage()

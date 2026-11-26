@@ -47,7 +47,7 @@ class TerminalTests(unittest.TestCase):
         def stop_after_samples():
             self.wait_recording()
             return 's\n'
-        stream = ScriptedInput(['h\n', 'HOME\n', self.wait_home_then_r, 'RUN\n', self.wait_teleop_then_c, stop_after_samples, self.wait_saved_then_quit])
+        stream = ScriptedInput(['h\n', self.wait_home_then_r, self.wait_teleop_then_c, stop_after_samples, self.wait_saved_then_quit])
         result = run_terminal(self.session, execute=True, stdin=stream, stdout=io.StringIO())
         self.assertEqual(result, 0)
         self.assertEqual(self.session.snapshot()['state'], 'closed')
@@ -57,7 +57,7 @@ class TerminalTests(unittest.TestCase):
         def quit_after_samples():
             self.wait_recording()
             return 'q\n'
-        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', 'RUN\n', self.wait_teleop_then_c, quit_after_samples]), stdout=io.StringIO())
+        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', self.wait_teleop_then_c, quit_after_samples]), stdout=io.StringIO())
         self.assertEqual(result, 0)
         self.assertEqual(self.session.snapshot()['state'], 'closed')
 
@@ -65,7 +65,7 @@ class TerminalTests(unittest.TestCase):
         def disconnect():
             self.wait_recording()
             return ''
-        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', 'RUN\n', self.wait_teleop_then_c, disconnect]), stdout=io.StringIO())
+        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', self.wait_teleop_then_c, disconnect]), stdout=io.StringIO())
         self.assertEqual(result, 1)
         self.assertEqual(self.session.snapshot()['state'], 'fault')
         self.assertEqual(self.session.snapshot()['path'], '')
@@ -74,7 +74,7 @@ class TerminalTests(unittest.TestCase):
             validate_episode(next(self.output.glob('*.partial.hdf5')))
 
     def test_offline_start_is_disabled(self):
-        result = run_terminal(self.session, stdin=ScriptedInput(['h\n', 'HOME\n', 'r\n', 'RUN\n', 'c\n', 'q\n']), stdout=io.StringIO())
+        result = run_terminal(self.session, stdin=ScriptedInput(['h\n', 'r\n', 'c\n', 'q\n']), stdout=io.StringIO())
         self.assertEqual(result, 0)
         self.assertIsNone(self.session.thread)
 
@@ -83,8 +83,8 @@ class TerminalTests(unittest.TestCase):
             run_terminal(self.session, execute=True, stdin=io.StringIO('r\nRUN\n'))
         self.assertIsNone(self.session.thread)
 
-    def test_confirmation_required_and_cancelled_by_stop(self):
-        stream = ScriptedInput(['RUN\n', 'r\n', 's\n', 'RUN\n', 'q\n'])
+    def test_old_confirmation_words_are_not_commands(self):
+        stream = ScriptedInput(['HOME\n', 'RUN\n', 'q\n'])
         run_terminal(self.session, execute=True, stdin=stream, stdout=io.StringIO())
         self.assertIsNone(self.session.thread)
 

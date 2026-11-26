@@ -50,7 +50,6 @@ def run_terminal(session, *, execute=False, stdin=None, stdout=None):
     write("h: BOTH arms Home | r: teleop ON | c: record | s: stop RECORDING and save | q: stop ALL and quit (Enter after command)")
     write("No duration limit. Fault protection remains active. Software stop is not an emergency stop.")
     threading.Thread(target=reader, name="terminal-input", daemon=True).start()
-    armed = None
     quitting = False
     last_status = None
     try:
@@ -70,34 +69,18 @@ def run_terminal(session, *, execute=False, stdin=None, stdout=None):
                     session.shutdown()
                     quitting = True
                 elif command == "s":
-                    armed = None
                     session.stop()
                 elif command in {"h", "r"}:
                     if not execute:
                         write("Offline preview: hardware commands disabled (execute=False).")
                     else:
-                        state = session.snapshot()['state']
-                        allowed = {'idle', 'ready', 'teleop'} if command == 'h' else {'idle', 'ready'}
-                        if state not in allowed:
+                        action = session.home if command == 'h' else session.engage
+                        if not action():
                             write("Command rejected: stop recording first; check session state.")
-                            armed = None
-                        else:
-                            armed = command
-                            if command == 'h':
-                                write("BOTH arms will move to their configured joint Home. Check workspace and emergency stop. Type HOME + Enter to confirm.")
-                            else:
-                                write("Enable teleoperation WITHOUT recording. Check identities, unloaded FT sensors and emergency stop. Type RUN + Enter to confirm.")
-                elif (command == "HOME" and armed == 'h') or (command == "RUN" and armed == 'r'):
-                    action = session.home if armed == 'h' else session.engage
-                    armed = None
-                    if not action():
-                        write("Command rejected: session busy or faulted.")
                 elif command == "c":
-                    armed = None
                     if not execute or not session.start():
                         write("Recording rejected: enable teleoperation with r first (execute=True required).")
                 elif command:
-                    armed = None
                     write("Commands: h, r, c, s, q (then Enter)")
             else:
                 finished.wait(.1)

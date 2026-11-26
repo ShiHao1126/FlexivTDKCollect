@@ -88,5 +88,14 @@
       "fault/stale monitoring continues without recording",
       "q stops and releases both arms"
     ]
+  },
+  "direct_commands_validation": {
+    "platform": "Windows",
+    "discovered": 44,
+    "passed": 43,
+    "skipped": 1,
+    "elapsed_s": 6.875,
+    "verified": "Direct h/r and GUI actions without confirmation; hardware guards retained",
+    "hardware_executed": false
   }
 }

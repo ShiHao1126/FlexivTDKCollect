@@ -38,11 +38,11 @@ class CollectionWindow:
         self.refresh()
 
     def home(self):
-        if self.execute and self.messagebox.askokcancel("双臂 Home", "主臂和从臂都将回到各自配置的关节 Home。确认工作区、传感器空载与急停。", parent=self.root):
+        if self.execute:
             self.session.home()
 
     def engage(self):
-        if self.execute and self.messagebox.askokcancel("开启遥操作", "确认设备身份、工具负载、传感器空载归零条件、工作区及急停。仅开启遥操作，不开始采集。", parent=self.root):
+        if self.execute:
             self.session.engage()
 
     def start(self):

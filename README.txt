@@ -12,8 +12,8 @@ TDK 两臂控制 -> 100 Hz 双侧状态采样 -> HDF5 -> 独立离线校验。
 本地入口（PowerShell，工作目录为本项目）
   & .\.venv\Scripts\python.exe scripts/collect.py
 默认 interface=terminal、execute=False：终端离线预览，不连接、不使能、不运动。
-终端命令需回车：h + HOME 确认让主臂和从臂分别回各自关节 Home；
-r + RUN 确认仅开启遥操作；c 开始采集；s 停止采集并保存，遥操作继续；q 停止全部并退出。
+终端命令需回车：h 让主臂和从臂分别回各自关节 Home；
+r 仅开启遥操作；c 开始采集；s 停止采集并保存，遥操作继续；q 停止全部并退出。
 采集中拒绝 h；先 s 等待保存完成。Home 完成后保持停止，需要 r 重新开启遥操作。
 SSH 挂断信号、EOF、Ctrl+C 请求停止并将中断片段标记失败，保留 partial。
 网络断开到系统发出信号可能有延迟，软件清理不替代物理急停。
@@ -32,7 +32,7 @@ Home、遥操作、采集分别操作，不在开始采集时自动回 Home 或�
 点击“停止采集并保存”或按 Esc 只结束采集，遥操作保持开启；可继续 c 采集下一段。
 关闭窗口或 q 才停止全部并释放连接。未采集期间也持续检查机器人健康及状态停更。
 异常只保留 partial，不自动发布；界面锁定故障并显示错误，详情在 session_errors.log。
-execute=True 仅允许 Linux；Home 和开启遥操作均需确认，本轮只测试假 SDK。
+execute=True 仅允许 Linux；h/r 直接执行，无二次确认；本轮只测试假 SDK。
 窗口使用 Tkinter（Python 的 Tk 组件）；终端模式不依赖 Tk 或图形桌面。
 停止请求不能强行打断阻塞的原生 SDK 调用，不能代替物理急停。
 
