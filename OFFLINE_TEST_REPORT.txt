@@ -71,5 +71,22 @@
     "elapsed_s": 5.508,
     "ast_files": 16,
     "hardware_executed": false
+  },
+  "separate_controls_validation": {
+    "platform": "Windows",
+    "discovered": 44,
+    "passed": 43,
+    "skipped": 1,
+    "skip_reason": "POSIX signal subprocess test requires Linux",
+    "elapsed_s": 6.812,
+    "ast_files": 16,
+    "hardware_executed": false,
+    "verified": [
+      "h commands both arms with their own Home targets",
+      "r engages without recording",
+      "s saves without stopping TDK; repeated c/s retains same teleop instance",
+      "fault/stale monitoring continues without recording",
+      "q stops and releases both arms"
+    ]
   }
 }

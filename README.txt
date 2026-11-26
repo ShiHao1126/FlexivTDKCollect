@@ -6,12 +6,15 @@
 TDK 两臂控制 -> 100 Hz 双侧状态采样 -> HDF5 -> 独立离线校验。
 本项目是“基于恢复原代码的重建版”，不是已证明逐字恢复的完整原项目。
 原始证据位于 ../TDK_recovered_20261126，未覆盖修改。
-没有访问或修改 SSH 设备，也没有运行真机。假 SDK 测试不等于真机验证。
+初次重建仅在本地完成；后续按用户授权同步 Pro6000_FRP 并运行假设备测试。
+没有运行真机；假 SDK 测试不等于真机验证。
 
 本地入口（PowerShell，工作目录为本项目）
   & .\.venv\Scripts\python.exe scripts/collect.py
 默认 interface=terminal、execute=False：终端离线预览，不连接、不使能、不运动。
-终端命令需回车：r 请求开始，再输入 RUN 确认；s 停止并保存；q 保存后退出。
+终端命令需回车：h + HOME 确认让主臂和从臂分别回各自关节 Home；
+r + RUN 确认仅开启遥操作；c 开始采集；s 停止采集并保存，遥操作继续；q 停止全部并退出。
+采集中拒绝 h；先 s 等待保存完成。Home 完成后保持停止，需要 r 重新开启遥操作。
 SSH 挂断信号、EOF、Ctrl+C 请求停止并将中断片段标记失败，保留 partial。
 网络断开到系统发出信号可能有延迟，软件清理不替代物理急停。
 图形窗口使用 --interface gui；以下窗口按钮说明适用于 GUI 模式。
@@ -22,16 +25,16 @@ SSH 挂断信号、EOF、Ctrl+C 请求停止并将中断片段标记失败，保
 测试不会批量删除任何文件；正式保存只移除已验证且已创建最终硬链接的那个 partial 文件。
 
 入口参数
-scripts/collect.py 开头 Args 集中设置 config、output、interface、execute、check_only、reset_home。
-窗口点击“开始采集”并确认后初始化并启用遥操作，无采集时长上限。
-点击“停止并保存”或按 Esc：停止遥操作、校验数据、自动保存本段 HDF5。
-关闭窗口同样请求停止并保存，清理完成后窗口才退出。可连续采集多段。
-异常只保留 partial，不自动发布；窗口锁定故障并显示错误，详情在 session_errors.log。
-execute=True 仅允许 Linux，并且每次开始都要求窗口确认；本轮仅测试假 SDK。
-窗口使用 Tkinter（Python 的 Tk 组件）；Linux 运行需要图形桌面及对应环境的 Tk。
+scripts/collect.py 开头 Args 集中设置 config、output、interface、execute、check_only。
+Home、遥操作、采集分别操作，不在开始采集时自动回 Home 或自动开启遥操作。
+主臂使用 episode_reset.leader_home_q_deg，从臂使用 follower_home_q_deg。
+图形窗口提供“双臂 Home”“开启遥操作”“开始采集”“停止采集并保存”按钮。
+点击“停止采集并保存”或按 Esc 只结束采集，遥操作保持开启；可继续 c 采集下一段。
+关闭窗口或 q 才停止全部并释放连接。未采集期间也持续检查机器人健康及状态停更。
+异常只保留 partial，不自动发布；界面锁定故障并显示错误，详情在 session_errors.log。
+execute=True 仅允许 Linux；Home 和开启遥操作均需确认，本轮只测试假 SDK。
+窗口使用 Tkinter（Python 的 Tk 组件）；终端模式不依赖 Tk 或图形桌面。
 停止请求不能强行打断阻塞的原生 SDK 调用，不能代替物理急停。
-reset_home=False 为新入口的安全默认；开启后才调用继承的双臂关节 Home。
-底层 recorder 使用 stop_event 手动停止；原快捷键菜单未复原，由新窗口提供开始/停止操作。
 
 配置与数据协议
 config.tdk_force_only.yaml 原样复制。相机、腕相机、触觉与夹爪均禁止启用。
@@ -61,7 +64,7 @@ host_time_ns 是本机单调时钟，不是Unix时间；robot_time_ns 按 SDK �
 假设备覆盖 API 调用顺序和文件契约，无法证明真实 SDK 参数、线程阻塞行为、
 传感器零偏/标定、控制稳定性、实际100Hz时序、急停或力反馈方向。
 未重建相机/触觉/夹爪、原完整快捷键菜单、数据集训练格式转换和原环境安装脚本。
-若以后部署，应先单独确认设备序列号、工具负载与归零条件；本轮未部署。
+真机执行前仍需确认设备序列号、工具负载与归零条件；同步代码不等于真机验收。
 
 溯源
 见 PROVENANCE.json：原文件/当前文件哈希、复用与修改分类。

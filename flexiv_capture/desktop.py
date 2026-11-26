@@ -23,38 +23,54 @@ class CollectionWindow:
         ttk.Label(panel, textvariable=self.stats_text).pack(anchor="w")
         buttons = ttk.Frame(panel)
         buttons.pack(fill="x", pady=18)
-        self.start_button = ttk.Button(buttons, text="开始采集", command=self.start)
+        self.home_button = ttk.Button(buttons, text="双臂 Home (h)", command=self.home)
+        self.home_button.pack(side="left", padx=(0, 12))
+        self.engage_button = ttk.Button(buttons, text="开启遥操作 (r)", command=self.engage)
+        self.engage_button.pack(side="left", padx=(0, 12))
+        self.start_button = ttk.Button(buttons, text="开始采集 (c)", command=self.start)
         self.start_button.pack(side="left", padx=(0, 12))
-        self.stop_button = ttk.Button(buttons, text="停止并保存", command=session.stop)
+        self.stop_button = ttk.Button(buttons, text="停止采集并保存 (s)", command=session.stop)
         self.stop_button.pack(side="left")
-        ttk.Label(panel, text="无时长上限；手动停止后结束遥操作、校验并保存。异常会自动停止。\n关闭窗口也会请求停止并保存；软件停止按钮不能代替物理急停。", wraplength=720).pack(anchor="w")
+        ttk.Label(panel, text="s 只停止采集并保存，遥操作保持开启；h 将双臂回 Home。异常会自动停止。\n关闭窗口也会请求停止并保存；软件停止按钮不能代替物理急停。", wraplength=720).pack(anchor="w")
         ttk.Label(panel, textvariable=self.result_text, wraplength=720).pack(anchor="w", pady=12)
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.bind("<Escape>", lambda event: session.stop())
         self.refresh()
 
+    def home(self):
+        if self.execute and self.messagebox.askokcancel("双臂 Home", "主臂和从臂都将回到各自配置的关节 Home。确认工作区、传感器空载与急停。", parent=self.root):
+            self.session.home()
+
+    def engage(self):
+        if self.execute and self.messagebox.askokcancel("开启遥操作", "确认设备身份、工具负载、传感器空载归零条件、工作区及急停。仅开启遥操作，不开始采集。", parent=self.root):
+            self.session.engage()
+
     def start(self):
-        if not self.execute:
-            return
-        if self.messagebox.askokcancel("开始双臂遥操作", "确认设备身份、工具负载、传感器空载归零条件、工作区及急停。\n开始后将初始化并启用双臂遥操作。", parent=self.root):
+        if self.execute:
             self.session.start()
 
     def close(self):
         self.closing = True
-        self.session.stop()
+        self.session.shutdown()
 
     def refresh(self):
         snapshot = self.session.snapshot()
         state = snapshot["state"]
         busy = self.session.thread is not None and self.session.thread.is_alive()
-        names = {"idle": "等待开始", "starting": "初始化中", "recording": "正在采集 · 等待手动停止",
-                 "stopping": "正在停止并保存，请稍候", "saved": "已保存，可开始下一段", "fault": "异常停止 · 请检查日志并重启程序"}
+        names = {"idle": "等待双臂 Home / 开启遥操作", "homing": "双臂正在回 Home",
+                 "ready": "双臂 Home 完成，遥操作关闭", "starting": "正在开启遥操作",
+                 "teleop": "遥操作开启 · 未采集", "recording": "遥操作开启 · 正在采集",
+                 "saving": "停止采集并保存 · 遥操作保持开启", "closing": "正在停止全部并退出",
+                 "closed": "已停止", "fault": "异常停止 · 请检查日志并重启程序"}
         self.state_text.set(names[state])
         stats = snapshot["progress"]
         self.stats_text.set(f"已采集 {stats.get('elapsed_s', 0):.1f} 秒    Leader {stats.get('leader', {}).get('samples', 0)} 条    Follower {stats.get('robot', {}).get('samples', 0)} 条")
         self.result_text.set(snapshot["error"] or snapshot["path"])
-        self.start_button.configure(state="normal" if self.execute and not busy and state != "fault" and not self.closing else "disabled")
-        self.stop_button.configure(state="normal" if busy and state in {"starting", "recording"} else "disabled")
+        enabled = self.execute and not self.closing
+        self.home_button.configure(state="normal" if enabled and state in {"idle", "ready", "teleop"} else "disabled")
+        self.engage_button.configure(state="normal" if enabled and state in {"idle", "ready"} else "disabled")
+        self.start_button.configure(state="normal" if enabled and state == "teleop" else "disabled")
+        self.stop_button.configure(state="normal" if state == "recording" else "disabled")
         if self.closing and not busy:
             if state == "fault":
                 self.messagebox.showerror("采集未成功保存", snapshot["error"], parent=self.root)
@@ -63,15 +79,15 @@ class CollectionWindow:
         self.root.after(100, self.refresh)
 
 
-def run_window(config, output, *, execute=False, reset_home=False):
+def run_window(config, output, *, execute=False):
     import tkinter as tk
     root = tk.Tk()
-    session = ManualSession(config, output, reset_home=reset_home)
+    session = ManualSession(config, output)
     CollectionWindow(root, session, execute=execute)
     try:
         root.mainloop()
     finally:
-        session.stop()
+        session.shutdown()
         if session.thread is not None:
             session.thread.join(timeout=5)
             if session.thread.is_alive():

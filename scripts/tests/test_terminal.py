@@ -27,10 +27,19 @@ class TerminalTests(unittest.TestCase):
     tearDown = test_manual.ManualTests.tearDown
     wait_recording = test_manual.ManualTests.wait_recording
 
+    def wait_home_then_r(self):
+        test_manual.ManualTests.wait_state(self,'ready')
+        return 'r\n'
+
+    def wait_teleop_then_c(self):
+        test_manual.ManualTests.wait_state(self,'teleop')
+        self.assertFalse(list(self.output.glob('*.hdf5')))
+        return 'c\n'
+
     def wait_saved_then_quit(self):
         end = time.monotonic() + 3
         while time.monotonic() < end:
-            if self.session.snapshot()['state'] == 'saved': return 'q\n'
+            if self.session.snapshot()['path'] and self.session.snapshot()['state'] == 'teleop': return 'q\n'
             time.sleep(.01)
         raise OSError(str(self.session.snapshot()))
 
@@ -38,25 +47,25 @@ class TerminalTests(unittest.TestCase):
         def stop_after_samples():
             self.wait_recording()
             return 's\n'
-        stream = ScriptedInput(['r\n', 'RUN\n', stop_after_samples, self.wait_saved_then_quit])
+        stream = ScriptedInput(['h\n', 'HOME\n', self.wait_home_then_r, 'RUN\n', self.wait_teleop_then_c, stop_after_samples, self.wait_saved_then_quit])
         result = run_terminal(self.session, execute=True, stdin=stream, stdout=io.StringIO())
         self.assertEqual(result, 0)
-        self.assertEqual(self.session.snapshot()['state'], 'saved')
+        self.assertEqual(self.session.snapshot()['state'], 'closed')
         validate_episode(Path(self.session.snapshot()['path']))
 
     def test_quit_while_recording_saves(self):
         def quit_after_samples():
             self.wait_recording()
             return 'q\n'
-        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', 'RUN\n', quit_after_samples]), stdout=io.StringIO())
+        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', 'RUN\n', self.wait_teleop_then_c, quit_after_samples]), stdout=io.StringIO())
         self.assertEqual(result, 0)
-        self.assertEqual(self.session.snapshot()['state'], 'saved')
+        self.assertEqual(self.session.snapshot()['state'], 'closed')
 
     def test_eof_while_recording_does_not_publish(self):
         def disconnect():
             self.wait_recording()
             return ''
-        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', 'RUN\n', disconnect]), stdout=io.StringIO())
+        result = run_terminal(self.session, execute=True, stdin=ScriptedInput(['r\n', 'RUN\n', self.wait_teleop_then_c, disconnect]), stdout=io.StringIO())
         self.assertEqual(result, 1)
         self.assertEqual(self.session.snapshot()['state'], 'fault')
         self.assertEqual(self.session.snapshot()['path'], '')
@@ -65,7 +74,7 @@ class TerminalTests(unittest.TestCase):
             validate_episode(next(self.output.glob('*.partial.hdf5')))
 
     def test_offline_start_is_disabled(self):
-        result = run_terminal(self.session, stdin=ScriptedInput(['r\n', 'RUN\n', 'q\n']), stdout=io.StringIO())
+        result = run_terminal(self.session, stdin=ScriptedInput(['h\n', 'HOME\n', 'r\n', 'RUN\n', 'c\n', 'q\n']), stdout=io.StringIO())
         self.assertEqual(result, 0)
         self.assertIsNone(self.session.thread)
 
@@ -93,6 +102,8 @@ from flexiv_capture.terminal import run_terminal
 c=load_config('config.tdk_force_only.yaml'); sdk=SDK()
 def factory(c,p): return Recorder(c,p,controller=TDKRobotController(c['robot'],c['teleop'],rdk=RDK,tdk=sdk))
 s=ManualSession(c,Path(sys.argv[1]),recorder_factory=factory)
+s.engage()
+while s.snapshot()['state']!='teleop': time.sleep(.01)
 s.start()
 while s.snapshot()['progress'].get('robot',{}).get('samples',0)<5: time.sleep(.01)
 raise SystemExit(run_terminal(s,execute=False))

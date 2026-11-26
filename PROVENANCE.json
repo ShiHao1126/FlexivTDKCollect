@@ -34,13 +34,15 @@
     },
     {
       "path": "flexiv_capture/recording.py",
-      "sha256": "e826ef5d2709edaab185a8656cb22933e9d6978f9ac164acf55f26b1f6e2032f",
+      "sha256": "752f7437646da4fcae505e7270880d010ca06de43312d805712022c47c0a4718",
       "status": "adapted_from_recovered",
       "note": "Rebuilt force-only acquisition around recovered writer/controller and original WorkerStats. Atomic bilateral queue, faulted partial retention, explicit final validation.",
       "source": "D:\\Study\\Haptic\\TDK_recovered_20261126\\project_20261026\\flexiv_capture\\recording.py",
       "source_sha256": "fe153442f967986045b1344c2c20a1bd8e8e5ada668f22766dce0a2e6db459a9",
       "previous_rebuild_sha256": "5b7e66d7b51e9b246cea5e6baedb397c41a0e1c01602f6e1de6dafaea8f0d13c",
-      "manual_ui_update": "2026-11-26: manual GUI collection, progress reporting or updated entrypoint test."
+      "manual_ui_update": "2026-11-26: manual GUI collection, progress reporting or updated entrypoint test.",
+      "pre_separate_controls_sha256": "e826ef5d2709edaab185a8656cb22933e9d6978f9ac164acf55f26b1f6e2032f",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     },
     {
       "path": "flexiv_capture/robot_control.py",
@@ -64,13 +66,15 @@
     },
     {
       "path": "scripts/collect.py",
-      "sha256": "0a03ba29bec33f9b7a31ae6a442383b61984f8995f3a1713d415fc6661ffa102",
+      "sha256": "efff03c759e9d625e67207a0efd6240b7f0769f384f063ad2446abe4dc3f4688",
       "status": "reconstructed",
       "note": "New implementation or offline test, not recovered original code.",
       "previous_rebuild_sha256": "bb17eef92a8ab2c33cb5681c01197fed875d9b048bf994f0b02a501ff750ea28",
       "manual_ui_update": "2026-11-26: manual GUI collection, progress reporting or updated entrypoint test.",
       "pre_terminal_sha256": "f2b15b46f6a84b561927d88db9fc8c284862df67396a34ed2556f4c53bcdab7c",
-      "terminal_update": "2026-11-26: shared manual lifecycle and SSH terminal interface or regression tests."
+      "terminal_update": "2026-11-26: shared manual lifecycle and SSH terminal interface or regression tests.",
+      "pre_separate_controls_sha256": "0a03ba29bec33f9b7a31ae6a442383b61984f8995f3a1713d415fc6661ffa102",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     },
     {
       "path": "scripts/tests/fakes.py",
@@ -94,37 +98,47 @@
     },
     {
       "path": "flexiv_capture/desktop.py",
-      "sha256": "aeaae03cf3d862da9f2b406b2b55e3e98b911a0bc048a65f333be85e6bc3c749",
+      "sha256": "ec1ea7484aff1b648a6bab42e6908edabddb1c7de9eb1ffedcb2169f001881bf",
       "status": "reconstructed",
       "note": "New manual collection GUI/lifecycle and offline tests, not recovered original code.",
       "pre_terminal_sha256": "54b7d20574848f97f271941b741eb3be92c26d6cd9fb8b5b8111dc3b063f80a1",
-      "terminal_update": "2026-11-26: shared manual lifecycle and SSH terminal interface or regression tests."
+      "terminal_update": "2026-11-26: shared manual lifecycle and SSH terminal interface or regression tests.",
+      "pre_separate_controls_sha256": "aeaae03cf3d862da9f2b406b2b55e3e98b911a0bc048a65f333be85e6bc3c749",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     },
     {
       "path": "scripts/tests/test_manual.py",
-      "sha256": "ca2b8e806c7a9c151c54f88d51e4eca9da6f60b8bf818a4fb085438b7a411de9",
+      "sha256": "e4e2abde3c5f12ce9acc292f25d7c1e88eb79a393cdc33e9de78629cfd06322c",
       "status": "reconstructed",
       "note": "New manual collection GUI/lifecycle and offline tests, not recovered original code.",
       "pre_terminal_sha256": "95cffac9311e36a8ce0f2b6202cb268a174f2a451a3928ea0b68f12108511dc9",
-      "terminal_update": "2026-11-26: shared manual lifecycle and SSH terminal interface or regression tests."
+      "terminal_update": "2026-11-26: shared manual lifecycle and SSH terminal interface or regression tests.",
+      "pre_separate_controls_sha256": "ca2b8e806c7a9c151c54f88d51e4eca9da6f60b8bf818a4fb085438b7a411de9",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     },
     {
       "path": "flexiv_capture/manual_session.py",
-      "sha256": "b2732551ebb3aed7e4d64c3c41af1b95ddb263d32b8675751353d0d714ab0b5e",
+      "sha256": "3b18b7cfa4c189231f305bfc35a12498f3249cefdc0011331d4276e59817fbc2",
       "status": "reconstructed",
-      "note": "Shared manual lifecycle / SSH terminal and offline tests; not recovered original code."
+      "note": "Shared manual lifecycle / SSH terminal and offline tests; not recovered original code.",
+      "pre_separate_controls_sha256": "b2732551ebb3aed7e4d64c3c41af1b95ddb263d32b8675751353d0d714ab0b5e",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     },
     {
       "path": "flexiv_capture/terminal.py",
-      "sha256": "f82f26b8e6462a0df947518fa2bc867c90cd1d252a3bd71766eb478368211dd6",
+      "sha256": "a352aa255d2c118020b1443b88c5b1891f1da238d265b751382d8741a64d6aa3",
       "status": "reconstructed",
-      "note": "Shared manual lifecycle / SSH terminal and offline tests; not recovered original code."
+      "note": "Shared manual lifecycle / SSH terminal and offline tests; not recovered original code.",
+      "pre_separate_controls_sha256": "f82f26b8e6462a0df947518fa2bc867c90cd1d252a3bd71766eb478368211dd6",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     },
     {
       "path": "scripts/tests/test_terminal.py",
-      "sha256": "c5d7140cb1314f31a707bea92504dbd881dd42891e1a17b447a1854cb8c4d7f6",
+      "sha256": "ab05c26d16c2c297cf37245eadb8950103b923e356ebc5a57ffeaaa5b16cdb9a",
       "status": "reconstructed",
-      "note": "Shared manual lifecycle / SSH terminal and offline tests; not recovered original code."
+      "note": "Shared manual lifecycle / SSH terminal and offline tests; not recovered original code.",
+      "pre_separate_controls_sha256": "c5d7140cb1314f31a707bea92504dbd881dd42891e1a17b447a1854cb8c4d7f6",
+      "controls_update": "2026-11-26: bilateral h Home, r teleoperation, independent c/s recording, q shutdown."
     }
   ]
 }

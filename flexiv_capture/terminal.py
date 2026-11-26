@@ -47,10 +47,10 @@ def run_terminal(session, *, execute=False, stdin=None, stdout=None):
     write("TDK force collection | " + ("HARDWARE" if execute else "OFFLINE PREVIEW (no devices)"))
     write(f"Leader: {session.config['teleop']['leader_sn']}  Follower: {session.config['robot']['robot_sn']}")
     write(f"Output: {session.output}")
-    write("r + Enter: start | s + Enter: stop and save | q + Enter: stop, save and quit")
+    write("h: BOTH arms Home | r: teleop ON | c: record | s: stop RECORDING and save | q: stop ALL and quit (Enter after command)")
     write("No duration limit. Fault protection remains active. Software stop is not an emergency stop.")
     threading.Thread(target=reader, name="terminal-input", daemon=True).start()
-    armed = False
+    armed = None
     quitting = False
     last_status = None
     try:
@@ -67,26 +67,38 @@ def run_terminal(session, *, execute=False, stdin=None, stdout=None):
                     session.abort("Terminal input closed")
                     quitting = True
                 elif command == "q":
-                    session.stop()
+                    session.shutdown()
                     quitting = True
                 elif command == "s":
-                    armed = False
+                    armed = None
                     session.stop()
-                elif command == "r":
+                elif command in {"h", "r"}:
                     if not execute:
-                        write("Offline preview: start disabled. Set execute=True only after hardware checks.")
-                    elif session.snapshot()['state'] in {'idle', 'saved'}:
-                        armed = True
-                        write("Check identities, unloaded FT sensors, workspace and emergency stop. Type RUN + Enter to initialize and engage both arms.")
+                        write("Offline preview: hardware commands disabled (execute=False).")
                     else:
-                        write("Start rejected: session busy or faulted.")
-                elif command == "RUN" and armed:
-                    armed = False
-                    if not session.start():
-                        write("Start rejected: session busy or faulted.")
+                        state = session.snapshot()['state']
+                        allowed = {'idle', 'ready', 'teleop'} if command == 'h' else {'idle', 'ready'}
+                        if state not in allowed:
+                            write("Command rejected: stop recording first; check session state.")
+                            armed = None
+                        else:
+                            armed = command
+                            if command == 'h':
+                                write("BOTH arms will move to their configured joint Home. Check workspace and emergency stop. Type HOME + Enter to confirm.")
+                            else:
+                                write("Enable teleoperation WITHOUT recording. Check identities, unloaded FT sensors and emergency stop. Type RUN + Enter to confirm.")
+                elif (command == "HOME" and armed == 'h') or (command == "RUN" and armed == 'r'):
+                    action = session.home if armed == 'h' else session.engage
+                    armed = None
+                    if not action():
+                        write("Command rejected: session busy or faulted.")
+                elif command == "c":
+                    armed = None
+                    if not execute or not session.start():
+                        write("Recording rejected: enable teleoperation with r first (execute=True required).")
                 elif command:
-                    armed = False
-                    write("Commands: r, s, q (then Enter)")
+                    armed = None
+                    write("Commands: h, r, c, s, q (then Enter)")
             else:
                 finished.wait(.1)
             snapshot = session.snapshot()
@@ -103,7 +115,7 @@ def run_terminal(session, *, execute=False, stdin=None, stdout=None):
                 return 1 if interrupted.is_set() or snapshot['state'] == 'fault' else 0
     finally:
         finished.set()
-        session.stop()
+        session.shutdown()
         if session.thread is not None:
             session.thread.join(timeout=5)
         for sig, handler in previous_handlers.items():

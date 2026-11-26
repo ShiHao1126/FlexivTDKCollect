@@ -92,8 +92,12 @@ class Recorder:
             raise RuntimeError("Recorder is closed or faulted; create a new session")
         self.robot.check_health()
 
-    def start_teleop(self) -> None:
+    def start_teleop(self, cancel_event=None) -> None:
         self.check_teleop_health()
+        self.robot.prepare()
+        if cancel_event is not None and cancel_event.is_set():
+            self.stop_teleop()
+            raise RuntimeError("Teleoperation activation cancelled")
         self.robot.engage(True)
 
     def stop_teleop(self) -> None:
@@ -106,11 +110,12 @@ class Recorder:
             finally:
                 self._closed = True
 
-    def reset_paired_home(self) -> dict:
+    def reset_paired_home(self, check_cancelled=None) -> dict:
         self.check_teleop_health()
         try:
             self.stop_teleop()
-            result = self.robot.reset_home(self.config["episode_reset"], prepare_after=False)
+            result = self.robot.reset_home(self.config["episode_reset"], prepare_after=False,
+                                          check_peripherals=check_cancelled)
             self.check_teleop_health()
             result["post_reset_state"] = "hold"
             return result
@@ -132,13 +137,16 @@ class Recorder:
         return self.output / f"episode_{index:04d}.partial.hdf5", final
 
     def record_episode(self, duration_s: float | None, *, stop_event: threading.Event | None = None,
-                       start_reset: dict | None = None, progress=None) -> tuple[Path, Path, dict]:
+                       start_reset: dict | None = None, progress=None,
+                       manage_teleop: bool = True) -> tuple[Path, Path, dict]:
         """Return a closed partial file; finalize() validates it before renaming."""
         self.check_teleop_health()
         if duration_s is not None and (not math.isfinite(duration_s) or duration_s <= 0):
             raise ValueError("duration_s must be finite and positive")
         if duration_s is None and stop_event is None:
             raise ValueError("An unbounded recording requires a stop_event")
+        if not manage_teleop and not (self.robot.started and self.robot.engaged):
+            raise RuntimeError("Start teleoperation before recording")
         partial, final = self._next_path()
         metadata = {
             "capture_mode": "tdk_teleop", "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -208,7 +216,8 @@ class Recorder:
         try:
             if stop_event is not None and stop_event.is_set():
                 raise RuntimeError("Recording cancelled before activation")
-            self.start_teleop()
+            if manage_teleop:
+                self.start_teleop(cancel_event=stop_event)
             wall_started = time.monotonic()
             thread = threading.Thread(target=robot_worker, name="tdk-paired-state-reader", daemon=True)
             thread.start()
@@ -230,7 +239,8 @@ class Recorder:
             if thread.is_alive():
                 raise RuntimeError("Paired state reader did not stop; session cannot be reused")
             # Stop invalidates native handles: never call it while the reader is active.
-            self.stop_teleop()
+            if manage_teleop:
+                self.stop_teleop()
             if not errors.empty():
                 exc = errors.get()
                 raise RuntimeError(f"robot acquisition failed: {exc}") from exc

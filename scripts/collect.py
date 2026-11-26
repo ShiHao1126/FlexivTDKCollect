@@ -14,7 +14,6 @@ class Args(Tap):
     interface: str = "terminal"  # terminal for SSH; gui for a graphical desktop.
     execute: bool = False  # False: offline preview; True: allow hardware start.
     check_only: bool = False  # Validate config and exit without opening a window.
-    reset_home: bool = False  # Optional joint Home before each episode.
 
 
 def main() -> int:
@@ -29,10 +28,10 @@ def main() -> int:
     if args.interface == "terminal":
         from flexiv_capture.manual_session import ManualSession
         from flexiv_capture.terminal import run_terminal
-        return run_terminal(ManualSession(config, args.output, reset_home=args.reset_home), execute=args.execute)
+        return run_terminal(ManualSession(config, args.output), execute=args.execute)
     if args.interface == "gui":
         from flexiv_capture.desktop import run_window
-        run_window(config, args.output, execute=args.execute, reset_home=args.reset_home)
+        run_window(config, args.output, execute=args.execute)
         return 0
     raise ValueError("interface must be terminal or gui")
 
