@@ -3,7 +3,7 @@ robot:
   # Task-side follower. /robot and robot0 always refer to this arm.
   robot_sn: Rizon4R-062115
   network_interfaces:
-    - 192.168.97.10
+    - 192.168.97.100
   rate_hz: 100.0
 
 teleop:

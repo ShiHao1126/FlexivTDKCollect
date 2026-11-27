@@ -12,7 +12,7 @@ class Args(Tap):
     config: Path = ROOT / "config.tdk_force_only.yaml"
     output: Path = ROOT / "recordings"
     interface: str = "terminal"  # terminal for SSH; gui for a graphical desktop.
-    execute: bool = False  # False: offline preview; True: allow hardware start.
+    execute: bool = True  # False: offline preview; True: allow hardware start.
     check_only: bool = False  # Validate config and exit without opening a window.
 
 
